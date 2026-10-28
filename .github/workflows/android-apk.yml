@@ -14,6 +14,15 @@ jobs:
         run: |
           mkdir -p privacy-flip-android
           unzip -q PrivacyFlip-Android-Source.zip -d privacy-flip-android
+          PROJECT_FILE="$(find privacy-flip-android -type f -name settings.gradle.kts -print -quit)"
+          if [ -z "$PROJECT_FILE" ]; then
+            echo "Could not find settings.gradle.kts in source archive."
+            find privacy-flip-android -maxdepth 4 -type f | head -80
+            exit 1
+          fi
+          PROJECT_DIR="$(dirname "$PROJECT_FILE")"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Found Android project at: $PROJECT_DIR"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -26,12 +35,12 @@ jobs:
         with:
           gradle-version: '8.9'
       - name: Verify source structure
-        run: python3 privacy-flip-android/tools/verify_source.py
+        run: python3 "$PROJECT_DIR/tools/verify_source.py"
       - name: Build debug APK
-        working-directory: privacy-flip-android
+        working-directory: ${{ env.PROJECT_DIR }}
         run: gradle assembleDebug
       - uses: actions/upload-artifact@v4
         with:
           name: privacy-flip-debug-apk
-          path: privacy-flip-android/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
