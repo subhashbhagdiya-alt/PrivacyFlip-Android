@@ -1,3 +1,27 @@
 # Privacy Flip — Native Android App
 
-Native Kotlin + Jetpack Compose offline-first app source. The Android source archive and GitHub Actions build workflow will be added here next. The APK is not yet built; the workflow will produce a downloadable debug APK artifact after a successful run.
+Privacy Flip is an offline-first native Android prototype built with Kotlin and Jetpack Compose.
+
+## Current prototype (v0.2.0)
+- Android 8.0+ support (API 26+)
+- Home dashboard with rule counts and Master Pause
+- Local automation-rule list with add, enable/disable, run-now logging, and delete
+- Activity log stored on device
+- Light/dark theme preference
+- Advanced Developer Mode diagnostics
+- No network permission or account required
+- GitHub Actions workflow builds a debug APK and uploads it as an artifact
+
+## Important limitations
+This is an early UI and local-rule prototype. **Run now records a demo action; it does not yet change Android system privacy settings.** Scheduled triggers, app-open/location triggers, real system-level privacy controls, and the Android share/export backup flow are not implemented yet. Android restricts many system settings to privileged apps or user-granted special access, so each real action must be implemented with explicit permission and compatibility checks.
+
+## Build
+The GitHub Actions workflow runs Gradle 8.9 with JDK 17 to build the debug APK. After a successful workflow run, download the PrivacyFlip-debug-apk artifact from the Actions run page.
+
+For local builds, install JDK 17 and Gradle 8.9, then run:
+
+~~~sh
+gradle assembleDebug
+~~~
+
+Package: com.privacyflip.app
