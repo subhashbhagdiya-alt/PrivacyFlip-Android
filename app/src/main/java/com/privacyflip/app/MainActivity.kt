@@ -290,18 +290,39 @@ private fun StatCard(label: String, value: String, modifier: Modifier = Modifier
 @Composable
 private fun RulesScreen(modifier: Modifier, rules: List<FlipRule>, onAdd: () -> Unit,
     onToggle: (FlipRule, Boolean) -> Unit, onRun: (FlipRule) -> Unit, onDelete: (FlipRule) -> Unit) {
+    var search by remember { mutableStateOf("") }
+    val filteredRules = rules.filter { rule ->
+        rule.name.contains(search, ignoreCase = true) ||
+            rule.trigger.contains(search, ignoreCase = true) ||
+            rule.action.contains(search, ignoreCase = true)
+    }
     Column(modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 12.dp)) {
             Column(Modifier.weight(1f)) {
                 Text("Automations", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text("Build and manage local rules", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${rules.size} saved rule(s)", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             FilledTonalButton(onClick = onAdd) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(6.dp)); Text("Add") }
         }
-        if (rules.isEmpty()) EmptyState("Nothing automated yet", "Add your first rule. Rules are stored offline.")
-        else LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
-            items(rules, key = { it.id }) { rule ->
-                RuleCard(rule, { onToggle(rule, it) }, { onRun(rule) }, onDelete = { onDelete(rule) })
+        if (rules.isEmpty()) {
+            EmptyState("Nothing automated yet", "Add your first rule. Rules are stored offline.")
+        } else {
+            OutlinedTextField(
+                value = search,
+                onValueChange = { search = it.take(80) },
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                label = { Text("Search rules") },
+                placeholder = { Text("Name, trigger or action") },
+                singleLine = true
+            )
+            if (filteredRules.isEmpty()) {
+                EmptyState("No matching rules", "Try a different name, trigger or action.")
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+                    items(filteredRules, key = { it.id }) { rule ->
+                        RuleCard(rule, { onToggle(rule, it) }, { onRun(rule) }, onDelete = { onDelete(rule) })
+                    }
+                }
             }
         }
     }
