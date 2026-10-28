@@ -160,7 +160,35 @@ private fun PrivacyFlipApp(prefs: android.content.SharedPreferences) {
                 Screen.LOGS -> LogsScreen(Modifier.padding(padding), logs, { logs = ""; saveAll() })
                 Screen.SETTINGS -> SettingsScreen(Modifier.padding(padding), dark, developer, backupJson,
                     { dark = it; saveAll() },
-                    { developer = it; saveAll(); log("Advanced Developer Mode ${if (it) "enabled" else "disabled"}") })
+                    { developer = it; saveAll(); log("Advanced Developer Mode ${if (it) "enabled" else "disabled"}") },
+                    { raw ->
+                        runCatching {
+                            val backup = JSONObject(raw)
+                            require(backup.optString("app") == "Privacy Flip") { "This is not a Privacy Flip backup." }
+                            val imported = backup.getJSONArray("rules")
+                            val restoredRules = (0 until imported.length()).map { i ->
+                                val o = imported.getJSONObject(i)
+                                FlipRule(
+                                    o.optLong("id", System.currentTimeMillis() + i),
+                                    o.optString("name", "Untitled"),
+                                    o.optString("trigger", "Manual"),
+                                    o.optString("action", "Privacy routine (demo)"),
+                                    o.optBoolean("enabled", true),
+                                    o.optInt("runs", 0).coerceAtLeast(0)
+                                )
+                            }
+                            rules.clear()
+                            rules.addAll(restoredRules)
+                            paused = backup.optBoolean("paused", false)
+                            dark = backup.optBoolean("darkTheme", true)
+                            developer = backup.optBoolean("developerMode", false)
+                            logs = ("Backup restored: ${restoredRules.size} rule(s).\\n" + logs).take(6000)
+                            saveAll()
+                            Toast.makeText(context, "Backup restored", Toast.LENGTH_SHORT).show()
+                        }.onFailure { error ->
+                            Toast.makeText(context, "Restore failed: ${error.message ?: "invalid backup"}", Toast.LENGTH_LONG).show()
+                        }
+                    })
             }
         }
         if (showAdd) AddRuleDialog({ showAdd = false }) { name, trigger, action ->
@@ -291,8 +319,20 @@ private fun LogsScreen(modifier: Modifier, logs: String, onClear: () -> Unit) {
 
 @Composable
 private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean, backupJson: String,
-    onDark: (Boolean) -> Unit, onDeveloper: (Boolean) -> Unit) {
+    onDark: (Boolean) -> Unit, onDeveloper: (Boolean) -> Unit, onRestore: (String) -> Unit) {
     val context = LocalContext.current
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                    ?: error("Unable to read selected file")
+            }.onSuccess(onRestore).onFailure {
+                Toast.makeText(context, "Could not read backup: ${it.message ?: "unknown error"}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
@@ -319,7 +359,11 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Local backup", fontWeight = FontWeight.Bold)
                     Text("Export rules and preferences to a JSON file on your device.", style = MaterialTheme.typography.bodySmall)
-                    Button(onClick = { exportLauncher.launch("privacy-flip-backup.json") }) { Text("Export backup") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Button(onClick = { exportLauncher.launch("privacy-flip-backup.json") }) { Text("Export backup") }
+                        OutlinedButton(onClick = { importLauncher.launch(arrayOf("application/json", "text/*")) }) { Text("Import / Restore") }
+                    }
+                    Text("Restore replaces current rules and saved preferences with the selected backup.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
