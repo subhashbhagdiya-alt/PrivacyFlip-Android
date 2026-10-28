@@ -2,8 +2,11 @@ package com.privacyflip.app
 
 import android.content.Context
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,6 +28,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.json.JSONArray
@@ -53,6 +57,12 @@ private fun PrivacyFlipApp(prefs: android.content.SharedPreferences) {
     var showAdd by remember { mutableStateOf(false) }
     var logs by remember { mutableStateOf(prefs.getString("logs", "Welcome to Privacy Flip.\n") ?: "") }
     val rules = remember { mutableStateListOf<FlipRule>().apply { addAll(loadRules(prefs)) } }
+    val backupJson = JSONObject().put("app", "Privacy Flip").put("version", 1)
+        .put("paused", paused).put("darkTheme", dark).put("developerMode", developer)
+        .put("rules", JSONArray().apply {
+            rules.forEach { r -> put(JSONObject().put("id", r.id).put("name", r.name)
+                .put("trigger", r.trigger).put("action", r.action).put("enabled", r.enabled).put("runs", r.runs)) }
+        }).toString(2)
 
     fun saveAll() {
         prefs.edit().putBoolean("dark", dark).putBoolean("developer", developer)
@@ -109,15 +119,9 @@ private fun PrivacyFlipApp(prefs: android.content.SharedPreferences) {
                     { rule -> runRule(rule, rules, paused, ::saveAll, ::log) },
                     { rule -> rules.removeAll { it.id == rule.id }; saveAll(); log("Deleted rule: ${rule.name}") })
                 Screen.LOGS -> LogsScreen(Modifier.padding(padding), logs, { logs = ""; saveAll() })
-                Screen.SETTINGS -> SettingsScreen(Modifier.padding(padding), dark, developer,
+                Screen.SETTINGS -> SettingsScreen(Modifier.padding(padding), dark, developer, backupJson,
                     { dark = it; saveAll() },
-                    { developer = it; saveAll(); log("Advanced Developer Mode ${if (it) "enabled" else "disabled"}") },
-                    {
-                        val export = JSONObject().put("version", 1).put("paused", paused).put("rules", JSONArray().apply {
-                            rules.forEach { put(JSONObject().put("id", it.id).put("name", it.name).put("trigger", it.trigger).put("action", it.action).put("enabled", it.enabled).put("runs", it.runs)) }
-                        })
-                        log("Backup snapshot prepared (${export.toString().length} characters); file sharing is not implemented yet.")
-                    })
+                    { developer = it; saveAll(); log("Advanced Developer Mode ${if (it) "enabled" else "disabled"}") })
             }
         }
         if (showAdd) AddRuleDialog({ showAdd = false }) { name, trigger, action ->
@@ -247,8 +251,23 @@ private fun LogsScreen(modifier: Modifier, logs: String, onClear: () -> Unit) {
 }
 
 @Composable
-private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean, onDark: (Boolean) -> Unit,
-    onDeveloper: (Boolean) -> Unit, onExport: () -> Unit) {
+private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean, backupJson: String,
+    onDark: (Boolean) -> Unit, onDeveloper: (Boolean) -> Unit) {
+    val context = LocalContext.current
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(backupJson) }
+                    ?: error("Unable to open destination")
+            }.onSuccess {
+                Toast.makeText(context, "Backup saved", Toast.LENGTH_SHORT).show()
+            }.onFailure {
+                Toast.makeText(context, "Backup failed: ${it.message ?: "unknown error"}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Text("Settings", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -260,8 +279,8 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
             Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Local backup", fontWeight = FontWeight.Bold)
-                    Text("Prepare a JSON snapshot of your rules. File sharing/export will be added later.", style = MaterialTheme.typography.bodySmall)
-                    Button(onClick = onExport) { Text("Prepare backup") }
+                    Text("Export rules and preferences to a JSON file on your device.", style = MaterialTheme.typography.bodySmall)
+                    Button(onClick = { exportLauncher.launch("privacy-flip-backup.json") }) { Text("Export backup") }
                 }
             }
         }
