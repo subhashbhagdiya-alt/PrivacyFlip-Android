@@ -10,10 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Reassemble source archive
-        run: |
-          cat source/part*.txt | base64 -d > privacy-flip-android-source.zip
-          unzip -q privacy-flip-android-source.zip
+      - name: Unpack Android source
+        run: unzip -q privacy-flip-android-source.zip
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
