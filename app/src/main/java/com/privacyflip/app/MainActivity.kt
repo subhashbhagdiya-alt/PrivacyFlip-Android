@@ -1,6 +1,10 @@
 package com.privacyflip.app
 
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -57,6 +61,40 @@ private fun PrivacyFlipApp(prefs: android.content.SharedPreferences) {
     var showAdd by remember { mutableStateOf(false) }
     var logs by remember { mutableStateOf(prefs.getString("logs", "Welcome to Privacy Flip.\n") ?: "") }
     val rules = remember { mutableStateListOf<FlipRule>().apply { addAll(loadRules(prefs)) } }
+    val context = LocalContext.current
+    DisposableEffect(context, paused) {
+        // Screen broadcasts are monitored only while this app's UI is active.
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                val trigger = when (intent?.action) {
+                    Intent.ACTION_SCREEN_ON -> "Screen turns ON"
+                    Intent.ACTION_SCREEN_OFF -> "Screen turns OFF"
+                    else -> return
+                }
+                if (paused) return
+                rules.indices.toList().forEach { index ->
+                    val rule = rules[index]
+                    if (rule.enabled && rule.trigger == trigger) {
+                        rules[index] = rule.copy(runs = rule.runs + 1)
+                        saveAll()
+                        log("Trigger detected: $trigger · ${rule.name}. Demo action logged; system settings unchanged.")
+                    }
+                }
+            }
+        }
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            context.registerReceiver(receiver, filter)
+        }
+        onDispose { runCatching { context.unregisterReceiver(receiver) } }
+    }
+
     val backupJson = JSONObject().put("app", "Privacy Flip").put("version", 1)
         .put("paused", paused).put("darkTheme", dark).put("developerMode", developer)
         .put("rules", JSONArray().apply {
@@ -333,7 +371,7 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = name, onValueChange = { name = it.take(48) }, label = { Text("Rule name") }, singleLine = true)
                 Text("Trigger", style = MaterialTheme.typography.labelLarge)
-                listOf("Manual", "Scheduled (planned)", "App opened (planned)", "Location (planned)").forEach { option ->
+                listOf("Manual", "Screen turns ON", "Screen turns OFF", "Scheduled (planned)", "App opened (planned)", "Location (planned)").forEach { option ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(selected = trigger == option, onClick = { trigger = option })
                         Text(option)
