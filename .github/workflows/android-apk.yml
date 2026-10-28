@@ -36,6 +36,13 @@ jobs:
           gradle-version: '8.9'
       - name: Verify source structure
         run: python3 "$PROJECT_DIR/tools/verify_source.py"
+      - name: Fix missing Material3 import
+        run: |
+          MAIN_FILE="$PROJECT_DIR/app/src/main/java/com/privacyflip/app/MainActivity.kt"
+          if ! grep -q '^import androidx.compose.material3.NavigationBarItem$' "$MAIN_FILE"; then
+            sed -i '/^package /a import androidx.compose.material3.NavigationBarItem' "$MAIN_FILE"
+          fi
+          grep -n 'NavigationBarItem' "$MAIN_FILE"
       - name: Build debug APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: gradle assembleDebug
