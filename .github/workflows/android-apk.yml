@@ -11,7 +11,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Unpack Android source
-        run: unzip -q privacy-flip-android-source.zip
+        run: |
+          mkdir -p privacy-flip-android
+          unzip -q PrivacyFlip-Android-Source.zip -d privacy-flip-android
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
