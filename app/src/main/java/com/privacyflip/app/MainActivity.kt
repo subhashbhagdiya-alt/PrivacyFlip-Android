@@ -59,6 +59,7 @@ private fun PrivacyFlipApp(prefs: android.content.SharedPreferences) {
     var paused by remember { mutableStateOf(prefs.getBoolean("paused", false)) }
     var screen by remember { mutableStateOf(Screen.HOME) }
     var showAdd by remember { mutableStateOf(false) }
+    var ruleToDelete by remember { mutableStateOf<FlipRule?>(null) }
     var logs by remember { mutableStateOf(prefs.getString("logs", "Welcome to Privacy Flip.\n") ?: "") }
     val rules = remember { mutableStateListOf<FlipRule>().apply { addAll(loadRules(prefs)) } }
     val backupJson = JSONObject().put("app", "Privacy Flip").put("version", 1)
@@ -156,7 +157,7 @@ private fun PrivacyFlipApp(prefs: android.content.SharedPreferences) {
                         saveAll(); log("${rule.name}: ${if (enabled) "enabled" else "disabled"}")
                     },
                     { rule -> runRule(rule, rules, paused, ::saveAll, ::log) },
-                    { rule -> rules.removeAll { it.id == rule.id }; saveAll(); log("Deleted rule: ${rule.name}") })
+                    { rule -> ruleToDelete = rule })
                 Screen.LOGS -> LogsScreen(Modifier.padding(padding), logs, { logs = ""; saveAll() })
                 Screen.SETTINGS -> SettingsScreen(Modifier.padding(padding), dark, developer, backupJson,
                     { dark = it; saveAll() },
@@ -204,6 +205,24 @@ private fun PrivacyFlipApp(prefs: android.content.SharedPreferences) {
         if (showAdd) AddRuleDialog({ showAdd = false }) { name, trigger, action ->
             rules.add(FlipRule(System.currentTimeMillis(), name, trigger, action))
             saveAll(); log("Created rule: $name"); showAdd = false
+        }
+        ruleToDelete?.let { rule ->
+            AlertDialog(
+                onDismissRequest = { ruleToDelete = null },
+                title = { Text("Delete rule?") },
+                text = { Text("Delete \"${rule.name}\"? This cannot be undone.") },
+                confirmButton = {
+                    Button(onClick = {
+                        rules.removeAll { it.id == rule.id }
+                        saveAll()
+                        log("Deleted rule: ${rule.name}")
+                        ruleToDelete = null
+                    }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = { TextButton(onClick = { ruleToDelete = null }) { Text("Cancel") } }
+            )
         }
     }
 }
