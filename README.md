@@ -4,7 +4,7 @@ Privacy Flip is an offline-first native Android prototype built with Kotlin and 
 
 ## Current prototype (v0.2.0)
 - Android 8.0+ support (API 26+)
-- Home dashboard with rule counts and Master Pause
+- Home dashboard with rule counts, enabled/disabled rule health summary, and Master Pause
 - Local automation-rule list with add, search by name/trigger/action, enable/disable, run-now logging, and delete confirmation
 - Activity log stored on device, with confirmation before clearing history
 - Light/dark theme preference
