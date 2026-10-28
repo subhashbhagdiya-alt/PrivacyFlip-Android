@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lock
@@ -317,10 +318,24 @@ private fun RulesScreen(modifier: Modifier, rules: List<FlipRule>, onAdd: () -> 
             OutlinedTextField(
                 value = search,
                 onValueChange = { search = it.take(80) },
-                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                 label = { Text("Search rules") },
                 placeholder = { Text("Name, trigger or action") },
+                trailingIcon = {
+                    if (search.isNotEmpty()) {
+                        IconButton(onClick = { search = "" }) {
+                            Icon(Icons.Default.Close, contentDescription = "Clear search")
+                        }
+                    }
+                },
                 singleLine = true
+            )
+            Text(
+                if (search.isBlank() && statusFilter == "All") "${rules.size} rule(s)"
+                else "Showing ${filteredRules.size} of ${rules.size} rule(s)",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp)
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 12.dp)) {
                 listOf("All", "Enabled", "Disabled").forEach { option ->
