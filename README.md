@@ -10,11 +10,12 @@ Privacy Flip is an offline-first native Android prototype built with Kotlin and 
 - Light/dark theme preference
 - Advanced Developer Mode diagnostics
 - Manual JSON backup export using Android's document picker
+- Screen ON/OFF triggers detected while the app UI is active; matching enabled rules update the local run count and activity log
 - No network permission or account required
 - GitHub Actions workflow builds a debug APK and uploads it as an artifact
 
 ## Important limitations
-This is an early UI and local-rule prototype. **Run now records a demo action; it does not yet change Android system privacy settings.** Scheduled triggers, app-open/location triggers, real system-level privacy controls, and backup import/restore are not implemented yet. Android restricts many system settings to privileged apps or user-granted special access, so each real action must be implemented with explicit permission and compatibility checks.
+This is an early UI and local-rule prototype. **Run now records a demo action; it does not yet change Android system privacy settings.** Screen ON/OFF detection currently works only while the app UI is active; it is not a background automation service. Scheduled triggers, app-open/location triggers, real system-level privacy controls, and backup import/restore are not implemented yet. Android restricts many system settings to privileged apps or user-granted special access, so each real action must be implemented with explicit permission and compatibility checks.
 
 ## Build
 The GitHub Actions workflow runs Gradle 8.9 with JDK 17 to build the debug APK. After a successful workflow run, download the PrivacyFlip-debug-apk artifact from the Actions run page.
