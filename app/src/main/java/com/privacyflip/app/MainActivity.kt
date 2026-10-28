@@ -165,24 +165,34 @@ private fun PrivacyFlipApp(prefs: android.content.SharedPreferences) {
                         runCatching {
                             val backup = JSONObject(raw)
                             require(backup.optString("app") == "Privacy Flip") { "This is not a Privacy Flip backup." }
+                            require(backup.optInt("version", -1) == 1) { "Unsupported backup version." }
                             val imported = backup.getJSONArray("rules")
+                            require(imported.length() <= 500) { "Backup contains too many rules (maximum 500)." }
                             val restoredRules = (0 until imported.length()).map { i ->
                                 val o = imported.getJSONObject(i)
+                                val name = o.optString("name", "").trim()
+                                val trigger = o.optString("trigger", "Manual").trim()
+                                val action = o.optString("action", "Privacy routine (demo)").trim()
+                                require(name.isNotEmpty() && name.length <= 48) { "Rule ${i + 1} has an invalid name." }
+                                require(trigger.isNotEmpty() && trigger.length <= 64) { "Rule ${i + 1} has an invalid trigger." }
+                                require(action.length <= 80) { "Rule ${i + 1} has an action that is too long." }
                                 FlipRule(
                                     o.optLong("id", System.currentTimeMillis() + i),
-                                    o.optString("name", "Untitled"),
-                                    o.optString("trigger", "Manual"),
-                                    o.optString("action", "Privacy routine (demo)"),
+                                    name, trigger, action.ifBlank { "Privacy routine (demo)" },
                                     o.optBoolean("enabled", true),
                                     o.optInt("runs", 0).coerceAtLeast(0)
                                 )
                             }
+                            require(restoredRules.map { it.id }.distinct().size == restoredRules.size) {
+                                "Backup contains duplicate rule IDs."
+                            }
+                            // Validate everything before replacing any current data.
                             rules.clear()
                             rules.addAll(restoredRules)
                             paused = backup.optBoolean("paused", false)
                             dark = backup.optBoolean("darkTheme", true)
                             developer = backup.optBoolean("developerMode", false)
-                            logs = ("Backup restored: ${restoredRules.size} rule(s).\\n" + logs).take(6000)
+                            logs = ("Backup restored: ${restoredRules.size} rule(s).\n" + logs).take(6000)
                             saveAll()
                             Toast.makeText(context, "Backup restored", Toast.LENGTH_SHORT).show()
                         }.onFailure { error ->
