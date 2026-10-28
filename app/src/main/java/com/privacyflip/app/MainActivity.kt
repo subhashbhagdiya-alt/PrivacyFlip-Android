@@ -321,6 +321,7 @@ private fun LogsScreen(modifier: Modifier, logs: String, onClear: () -> Unit) {
 private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean, backupJson: String,
     onDark: (Boolean) -> Unit, onDeveloper: (Boolean) -> Unit, onRestore: (String) -> Unit) {
     val context = LocalContext.current
+    var pendingImport by remember { mutableStateOf<String?>(null) }
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -328,7 +329,7 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
             runCatching {
                 context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
                     ?: error("Unable to read selected file")
-            }.onSuccess(onRestore).onFailure {
+            }.onSuccess { pendingImport = it }.onFailure {
                 Toast.makeText(context, "Could not read backup: ${it.message ?: "unknown error"}", Toast.LENGTH_LONG).show()
             }
         }
@@ -346,6 +347,22 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
                 Toast.makeText(context, "Backup failed: ${it.message ?: "unknown error"}", Toast.LENGTH_LONG).show()
             }
         }
+    }
+    pendingImport?.let { rawBackup ->
+        AlertDialog(
+            onDismissRequest = { pendingImport = null },
+            title = { Text("Replace current data?") },
+            text = { Text("Restoring this backup replaces your current rules and saved preferences. Export a backup first if you may need your current data.") },
+            confirmButton = {
+                Button(onClick = {
+                    pendingImport = null
+                    onRestore(rawBackup)
+                }) { Text("Restore backup") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingImport = null }) { Text("Cancel") }
+            }
+        )
     }
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
