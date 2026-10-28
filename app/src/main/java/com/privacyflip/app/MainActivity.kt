@@ -371,13 +371,30 @@ private fun RuleCard(rule: FlipRule, onToggle: (Boolean) -> Unit, onRun: () -> U
 
 @Composable
 private fun LogsScreen(modifier: Modifier, logs: String, onClear: () -> Unit) {
+    var confirmClear by remember { mutableStateOf(false) }
+    if (confirmClear) {
+        AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            title = { Text("Clear activity log?") },
+            text = { Text("This permanently clears the activity history saved on this device. Your rules will not be deleted.") },
+            confirmButton = {
+                Button(onClick = {
+                    onClear()
+                    confirmClear = false
+                }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
+                    Text("Clear log")
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } }
+        )
+    }
     Column(modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Activity log", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text("Stored locally on this device", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            TextButton(onClick = onClear) { Text("Clear") }
+            TextButton(onClick = { confirmClear = true }, enabled = logs.isNotBlank()) { Text("Clear") }
         }
         Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxSize()) {
             Text(logs.ifBlank { "No activity yet." }, Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium)
