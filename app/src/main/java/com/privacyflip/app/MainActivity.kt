@@ -264,9 +264,39 @@ private fun HomeScreen(modifier: Modifier, rules: List<FlipRule>, paused: Boolea
             }
         }
         item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatCard("Total rules", rules.size.toString(), Modifier.weight(1f))
+            StatCard("Total", rules.size.toString(), Modifier.weight(1f))
             StatCard("Enabled", rules.count { it.enabled }.toString(), Modifier.weight(1f))
-            StatCard("Run count", rules.sumOf { it.runs }.toString(), Modifier.weight(1f))
+            StatCard("Disabled", rules.count { !it.enabled }.toString(), Modifier.weight(1f))
+        } }
+        item { Surface(
+            shape = RoundedCornerShape(18.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Rule health", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                val enabledCount = rules.count { it.enabled }
+                val disabledCount = rules.size - enabledCount
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Enabled", modifier = Modifier.weight(1f))
+                    Text(enabledCount.toString(), fontWeight = FontWeight.SemiBold)
+                }
+                LinearProgressIndicator(
+                    progress = { if (rules.isEmpty()) 0f else enabledCount.toFloat() / rules.size.toFloat() },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Disabled", modifier = Modifier.weight(1f))
+                    Text(disabledCount.toString(), fontWeight = FontWeight.SemiBold)
+                }
+                Text(
+                    if (rules.isEmpty()) "Create a rule to see your rule status summary."
+                    else if (paused) "Master Pause is on. Rule status is shown, but actions are paused."
+                    else "Status summary only. Rule actions are still demo-only.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         } }
         item { Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Quick rules", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
