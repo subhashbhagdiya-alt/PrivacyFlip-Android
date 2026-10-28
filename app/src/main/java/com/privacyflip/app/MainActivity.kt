@@ -177,11 +177,13 @@ private fun PrivacyFlipApp(prefs: android.content.SharedPreferences) {
                                 require(name.isNotEmpty() && name.length <= 48) { "Rule ${i + 1} has an invalid name." }
                                 require(trigger.isNotEmpty() && trigger.length <= 64) { "Rule ${i + 1} has an invalid trigger." }
                                 require(action.length <= 80) { "Rule ${i + 1} has an action that is too long." }
+                                val ruleId = o.optLong("id", System.currentTimeMillis() + i)
+                                require(ruleId > 0L) { "Rule ${i + 1} has an invalid ID." }
                                 FlipRule(
-                                    o.optLong("id", System.currentTimeMillis() + i),
+                                    ruleId,
                                     name, trigger, action.ifBlank { "Privacy routine (demo)" },
                                     o.optBoolean("enabled", true),
-                                    o.optInt("runs", 0).coerceAtLeast(0)
+                                    o.optInt("runs", 0).coerceIn(0, 1_000_000)
                                 )
                             }
                             require(restoredRules.map { it.id }.distinct().size == restoredRules.size) {
@@ -356,8 +358,21 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
     ) { uri ->
         if (uri != null) {
             runCatching {
-                context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                val reader = context.contentResolver.openInputStream(uri)?.bufferedReader()
                     ?: error("Unable to read selected file")
+                reader.use {
+                    val output = StringBuilder()
+                    val buffer = CharArray(8192)
+                    while (true) {
+                        val count = it.read(buffer)
+                        if (count < 0) break
+                        require(output.length + count <= 1_000_000) {
+                            "Backup file is too large (maximum 1 MB)."
+                        }
+                        output.append(buffer, 0, count)
+                    }
+                    output.toString()
+                }
             }.onSuccess { pendingImport = it }.onFailure {
                 Toast.makeText(context, "Could not read backup: ${it.message ?: "unknown error"}", Toast.LENGTH_LONG).show()
             }
