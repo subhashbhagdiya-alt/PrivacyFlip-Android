@@ -291,10 +291,17 @@ private fun StatCard(label: String, value: String, modifier: Modifier = Modifier
 private fun RulesScreen(modifier: Modifier, rules: List<FlipRule>, onAdd: () -> Unit,
     onToggle: (FlipRule, Boolean) -> Unit, onRun: (FlipRule) -> Unit, onDelete: (FlipRule) -> Unit) {
     var search by remember { mutableStateOf("") }
+    var statusFilter by remember { mutableStateOf("All") }
     val filteredRules = rules.filter { rule ->
-        rule.name.contains(search, ignoreCase = true) ||
+        val matchesSearch = rule.name.contains(search, ignoreCase = true) ||
             rule.trigger.contains(search, ignoreCase = true) ||
             rule.action.contains(search, ignoreCase = true)
+        val matchesStatus = when (statusFilter) {
+            "Enabled" -> rule.enabled
+            "Disabled" -> !rule.enabled
+            else -> true
+        }
+        matchesSearch && matchesStatus
     }
     Column(modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 12.dp)) {
@@ -315,8 +322,17 @@ private fun RulesScreen(modifier: Modifier, rules: List<FlipRule>, onAdd: () -> 
                 placeholder = { Text("Name, trigger or action") },
                 singleLine = true
             )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 12.dp)) {
+                listOf("All", "Enabled", "Disabled").forEach { option ->
+                    FilterChip(
+                        selected = statusFilter == option,
+                        onClick = { statusFilter = option },
+                        label = { Text(option) }
+                    )
+                }
+            }
             if (filteredRules.isEmpty()) {
-                EmptyState("No matching rules", "Try a different name, trigger or action.")
+                EmptyState("No matching rules", "Try another search or status filter.")
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
                     items(filteredRules, key = { it.id }) { rule ->
