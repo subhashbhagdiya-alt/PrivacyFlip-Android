@@ -61,6 +61,26 @@ private fun PrivacyFlipApp(prefs: android.content.SharedPreferences) {
     var showAdd by remember { mutableStateOf(false) }
     var logs by remember { mutableStateOf(prefs.getString("logs", "Welcome to Privacy Flip.\n") ?: "") }
     val rules = remember { mutableStateListOf<FlipRule>().apply { addAll(loadRules(prefs)) } }
+    val backupJson = JSONObject().put("app", "Privacy Flip").put("version", 1)
+        .put("paused", paused).put("darkTheme", dark).put("developerMode", developer)
+        .put("rules", JSONArray().apply {
+            rules.forEach { r -> put(JSONObject().put("id", r.id).put("name", r.name)
+                .put("trigger", r.trigger).put("action", r.action).put("enabled", r.enabled).put("runs", r.runs)) }
+        }).toString(2)
+
+    fun saveAll() {
+        prefs.edit().putBoolean("dark", dark).putBoolean("developer", developer)
+            .putBoolean("paused", paused).putString("logs", logs)
+            .putString("rules", JSONArray().apply {
+                rules.forEach { r -> put(JSONObject().put("id", r.id).put("name", r.name)
+                    .put("trigger", r.trigger).put("action", r.action).put("enabled", r.enabled).put("runs", r.runs)) }
+            }.toString()).apply()
+    }
+    fun log(message: String) {
+        logs = (message + "\n" + logs).take(6000)
+        saveAll()
+    }
+
     val context = LocalContext.current
     DisposableEffect(context, paused) {
         // Screen broadcasts are monitored only while this app's UI is active.
@@ -95,25 +115,6 @@ private fun PrivacyFlipApp(prefs: android.content.SharedPreferences) {
         onDispose { runCatching { context.unregisterReceiver(receiver) } }
     }
 
-    val backupJson = JSONObject().put("app", "Privacy Flip").put("version", 1)
-        .put("paused", paused).put("darkTheme", dark).put("developerMode", developer)
-        .put("rules", JSONArray().apply {
-            rules.forEach { r -> put(JSONObject().put("id", r.id).put("name", r.name)
-                .put("trigger", r.trigger).put("action", r.action).put("enabled", r.enabled).put("runs", r.runs)) }
-        }).toString(2)
-
-    fun saveAll() {
-        prefs.edit().putBoolean("dark", dark).putBoolean("developer", developer)
-            .putBoolean("paused", paused).putString("logs", logs)
-            .putString("rules", JSONArray().apply {
-                rules.forEach { r -> put(JSONObject().put("id", r.id).put("name", r.name)
-                    .put("trigger", r.trigger).put("action", r.action).put("enabled", r.enabled).put("runs", r.runs)) }
-            }.toString()).apply()
-    }
-    fun log(message: String) {
-        logs = (message + "\n" + logs).take(6000)
-        saveAll()
-    }
     val scheme = if (dark) darkColorScheme(
         primary = Color(0xFF8FE3C1), secondary = Color(0xFFB9C7FF),
         background = Color(0xFF0B1110), surface = Color(0xFF141D1B)
