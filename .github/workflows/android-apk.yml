@@ -40,15 +40,7 @@ jobs:
         run: |
           MAIN_FILE="$PROJECT_DIR/app/src/main/java/com/privacyflip/app/MainActivity.kt"
           APP_GRADLE="$PROJECT_DIR/app/build.gradle.kts"
-          if ! grep -q '^import androidx.compose.material3.NavigationBarItem      - name: Build debug APK
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: gradle assembleDebug
-      - uses: actions/upload-artifact@v4
-        with:
-          name: privacy-flip-debug-apk
-          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
- "$MAIN_FILE"; then
+          if ! grep -q '^import androidx.compose.material3.NavigationBarItem$' "$MAIN_FILE"; then
             sed -i '/^package /a import androidx.compose.material3.NavigationBarItem' "$MAIN_FILE"
           fi
           if ! grep -q 'androidx.compose.material3:material3' "$APP_GRADLE"; then
