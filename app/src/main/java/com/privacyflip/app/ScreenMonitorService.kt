@@ -59,52 +59,77 @@ class ScreenMonitorService : Service() {
                 }
                 val prefs = getSharedPreferences("privacy_flip", Context.MODE_PRIVATE)
                 if (prefs.getBoolean("paused", false)) return
-                val rules = runCatching {
+
+                runCatching {
                     val raw = prefs.getString("rules", "[]") ?: "[]"
                     val array = JSONArray(raw)
                     val updated = JSONArray()
                     val messages = mutableListOf<String>()
                     val matchedRules = mutableListOf<Pair<String, String>>()
+                    var notificationIndex = 0
+
                     for (i in 0 until array.length()) {
                         val item = array.getJSONObject(i)
                         val savedTrigger = item.optString("trigger")
+                        val name = item.optString("name", "Privacy rule")
                         val action = item.optString("action", "Log only (no system change)")
-                        val isMobileDataRule = savedTrigger == MobileDataShizuku.TRIGGER_NAME && action == MobileDataShizuku.ACTION_NAME
-                        val triggerMatches = savedTrigger == trigger ||
-                            (trigger == "Screen turns OFF" && savedTrigger == "Phone locks / screen turns OFF") ||
-                            (isMobileDataRule && (trigger == "Screen turns OFF" || trigger == "Phone unlocked"))
+                        val pairedOption = pairedOption(action)
+                        val pairedAction = pairedOption != null || action.equals("Toggle Do Not Disturb", ignoreCase = true)
+                        val lockUnlockTrigger = trigger == "Screen turns OFF" || trigger == "Phone unlocked"
+                        val savedLockUnlockTrigger = savedTrigger == "Screen turns OFF" ||
+                            savedTrigger == "Phone locks / screen turns OFF" ||
+                            savedTrigger == "Phone unlocked"
+                        val triggerMatches = if (pairedAction) {
+                            lockUnlockTrigger && savedLockUnlockTrigger
+                        } else {
+                            savedTrigger == trigger ||
+                                (trigger == "Screen turns OFF" && savedTrigger == "Phone locks / screen turns OFF")
+                        }
+
                         if (item.optBoolean("enabled", true) && triggerMatches) {
                             item.put("runs", (item.optInt("runs") + 1).coerceAtMost(1_000_000))
-                            val name = item.optString("name", "Privacy rule")
-                            if (isMobileDataRule) {
-                                val enableData = trigger == "Phone unlocked"
-                                messages.add(trigger + " · " + name + ": requesting Mobile Data " + (if (enableData) "ON" else "OFF") + " via Shizuku.")
-                                MobileDataShizuku.setMobileDataEnabled(this@ScreenMonitorService, enableData) { result ->
-                                    recordMobileDataResult(name, enableData, result)
+
+                            if (pairedOption != null) {
+                                // Radio-style controls go OFF on lock and ON on unlock.
+                                // Camera/microphone privacy toggles instead turn privacy ON while locked.
+                                val privacySensor = pairedOption == "camera_privacy" || pairedOption == "microphone_privacy"
+                                val enabled = if (trigger == "Screen turns OFF") privacySensor else !privacySensor
+                                ShizukuAutomation.apply(this@ScreenMonitorService, pairedOption, enabled) { result ->
+                                    if (result.startsWith("OK:")) {
+                                        appendLog(prefs, "$trigger · $name: $result")
+                                    } else {
+                                        appendLog(prefs, "$trigger · $name FAILED: $result")
+                                        postAutomationFailureNotification(name, result)
+                                    }
                                 }
-                            } else if (action.equals("Toggle Do Not Disturb", ignoreCase = true) &&
-                                (trigger == "Screen turns OFF" || trigger == "Phone unlocked")) {
+                                messages.add("$trigger · $name: automatic system command requested.")
+                            } else if (action.equals("Toggle Do Not Disturb", ignoreCase = true) && lockUnlockTrigger) {
                                 val targetAction = if (trigger == "Screen turns OFF") "Enable Do Not Disturb" else "Disable Do Not Disturb"
                                 if (!applyDoNotDisturb(targetAction)) {
                                     matchedRules.add(name to targetAction)
-                                    messages.add(trigger + " · " + name + ": grant Do Not Disturb access, then tap the notification to retry.")
+                                    messages.add("$trigger · $name: grant Do Not Disturb access in Android settings.")
                                 } else {
-                                    messages.add(trigger + " · " + name + ": Do Not Disturb " + if (targetAction == "Enable Do Not Disturb") "enabled." else "disabled.")
+                                    messages.add("$trigger · $name: Do Not Disturb " +
+                                        if (targetAction == "Enable Do Not Disturb") "enabled." else "disabled.")
                                 }
                             } else {
                                 matchedRules.add(name to action)
-                                messages.add("Trigger detected: $trigger · $name. Tap the notification to open the selected Android settings; system changes require your confirmation.")
+                                messages.add("Trigger detected: $trigger · $name. Tap the notification to open $action; this shortcut does not change that setting automatically.")
                             }
                         }
                         updated.put(item)
                     }
+
                     prefs.edit().putString("rules", updated.toString()).apply()
-                    matchedRules.forEachIndexed { index, match -> postRuleActionNotification(match.first, match.second, index) }
-                    messages
-                }.getOrDefault(emptyList())
-                if (rules.isNotEmpty()) {
-                    val previous = prefs.getString("logs", "") ?: ""
-                    prefs.edit().putString("logs", (rules.joinToString("\n") + "\n" + previous).take(6000)).apply()
+                    matchedRules.forEach { match ->
+                        postRuleActionNotification(match.first, match.second, notificationIndex++)
+                    }
+                    if (messages.isNotEmpty()) {
+                        val previous = prefs.getString("logs", "") ?: ""
+                        prefs.edit().putString("logs", (messages.joinToString("\n") + "\n" + previous).take(6000)).apply()
+                    }
+                }.onFailure { error ->
+                    appendLog(prefs, "Screen rule error: " + (error.message ?: "unknown error"))
                 }
             }
         }
@@ -148,6 +173,46 @@ class ScreenMonitorService : Service() {
                 getSystemService(NotificationManager::class.java).notify(3301, builder.build())
             }
         }
+    }
+
+    private fun pairedOption(action: String): String? = when (action.trim()) {
+        "Auto: Mobile data OFF on lock / ON on unlock" -> "mobile_data"
+        "Auto: Wi-Fi OFF on lock / ON on unlock" -> "wifi"
+        "Auto: Bluetooth OFF on lock / ON on unlock" -> "bluetooth"
+        "Auto: Location OFF on lock / ON on unlock" -> "location"
+        "Auto: Camera privacy ON on lock / OFF on unlock" -> "camera_privacy"
+        "Auto: Microphone privacy ON on lock / OFF on unlock" -> "microphone_privacy"
+        else -> null
+    }
+
+    private fun appendLog(prefs: android.content.SharedPreferences, message: String) {
+        val previous = prefs.getString("logs", "") ?: ""
+        prefs.edit().putString("logs", (message + "\n" + previous).take(6000)).apply()
+    }
+
+    private fun postAutomationFailureNotification(ruleName: String, reason: String) {
+        val pending = PendingIntent.getActivity(
+            this,
+            (ruleName.hashCode() and 0x7fffffff),
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or
+                (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+        )
+        val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, "privacy_flip_monitor")
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(this)
+        }.setSmallIcon(R.drawable.ic_privacy_flip)
+            .setContentTitle("Automatic action needs setup: $ruleName")
+            .setContentText(reason.take(180))
+            .setContentIntent(pending)
+            .setAutoCancel(true)
+            .build()
+        getSystemService(NotificationManager::class.java)
+            .notify(15000 + ((ruleName.hashCode() and 0x7fffffff) % 10000), notification)
     }
 
     private fun applyDoNotDisturb(action: String): Boolean {
