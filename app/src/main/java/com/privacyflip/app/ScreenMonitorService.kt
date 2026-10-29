@@ -71,8 +71,19 @@ class ScreenMonitorService : Service() {
                             item.put("runs", (item.optInt("runs") + 1).coerceAtMost(1_000_000))
                             val name = item.optString("name", "Privacy rule")
                             val action = item.optString("action", "Log only (no system change)")
-                            matchedRules.add(name to action)
-                            messages.add("Trigger detected: $trigger · $name. Tap the notification to open the selected Android settings; system changes require your confirmation.")
+                            if (action.equals("Toggle Do Not Disturb", ignoreCase = true) &&
+                                (trigger == "Screen turns OFF" || trigger == "Phone unlocked")) {
+                                val targetAction = if (trigger == "Screen turns OFF") "Enable Do Not Disturb" else "Disable Do Not Disturb"
+                                if (!applyDoNotDisturb(targetAction)) {
+                                    matchedRules.add(name to targetAction)
+                                    messages.add(trigger + " · " + name + ": grant Do Not Disturb access, then tap the notification to retry.")
+                                } else {
+                                    messages.add(trigger + " · " + name + ": Do Not Disturb " + if (targetAction == "Enable Do Not Disturb") "enabled." else "disabled.")
+                                }
+                            } else {
+                                matchedRules.add(name to action)
+                                messages.add("Trigger detected: $trigger · $name. Tap the notification to open the selected Android settings; system changes require your confirmation.")
+                            }
                         }
                         updated.put(item)
                     }
@@ -96,6 +107,18 @@ class ScreenMonitorService : Service() {
             @Suppress("DEPRECATION")
             registerReceiver(receiver, filter)
         }
+    }
+
+    private fun applyDoNotDisturb(action: String): Boolean {
+        val manager = getSystemService(NotificationManager::class.java)
+        if (!manager.isNotificationPolicyAccessGranted) return false
+        return runCatching {
+            manager.setInterruptionFilter(
+                if (action.equals("Enable Do Not Disturb", ignoreCase = true))
+                    NotificationManager.INTERRUPTION_FILTER_PRIORITY
+                else NotificationManager.INTERRUPTION_FILTER_ALL
+            )
+        }.isSuccess
     }
 
     private fun postRuleActionNotification(ruleName: String, action: String, index: Int) {
