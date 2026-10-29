@@ -477,9 +477,7 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
     val context = LocalContext.current
     val appPrefs = remember(context) { context.getSharedPreferences("privacy_flip", Context.MODE_PRIVATE) }
     var monitoring by remember { mutableStateOf(appPrefs.getBoolean("screen_monitor_enabled", false)) }
-    val serviceRunning = remember(monitorStatusTick, monitoring) {
-        monitoring && appPrefs.getBoolean("screen_monitor_enabled", false)
-    }
+    var serviceRunning by remember { mutableStateOf(appPrefs.getBoolean("monitor_service_running", false)) }
     var pendingImport by remember { mutableStateOf<String?>(null) }
     val startMonitoring = {
         runCatching {
@@ -487,6 +485,7 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
             else context.startService(intent)
             monitoring = true
+            serviceRunning = true
             appPrefs.edit().putBoolean("screen_monitor_enabled", true).apply()
             Toast.makeText(context, "Screen monitoring started", Toast.LENGTH_SHORT).show()
         }.onFailure {
@@ -566,17 +565,27 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Background screen monitoring", fontWeight = FontWeight.Bold)
                     Text(
-                        if (serviceRunning) "Monitoring is enabled by your saved preference. Screen triggers can be logged while the service runs; actions remain demo-only."
+                        if (serviceRunning) "Service reports running. Screen triggers can be logged; actions remain demo-only."
+                        else if (monitoring) "Monitoring was enabled, but the service is not currently reporting as running."
                         else "Enable a persistent notification and monitor screen ON/OFF triggers while this service runs.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    OutlinedButton(
+                        onClick = {
+                            serviceRunning = appPrefs.getBoolean("monitor_service_running", false)
+                            monitoring = appPrefs.getBoolean("screen_monitor_enabled", false)
+                            Toast.makeText(context, if (serviceRunning) "Service reports running" else "Service is not reporting as running", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Refresh monitoring status") }
                     Button(
                         onClick = {
                             runCatching {
                                 if (monitoring) {
                                     context.stopService(Intent(context, ScreenMonitorService::class.java))
                                     monitoring = false
+                                    serviceRunning = false
                                     appPrefs.edit().putBoolean("screen_monitor_enabled", false).apply()
                                     Toast.makeText(context, "Screen monitoring stopped", Toast.LENGTH_SHORT).show()
                                 } else {
