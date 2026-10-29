@@ -99,6 +99,10 @@ object MobileDataRestoreController {
                 log("Mobile Data restore skipped: Privacy Flip did not disable it.")
                 return
             }
+            if (prefs.getString(KEY_ORIGINAL, null) != "ENABLED") {
+                log("Mobile Data restore skipped: saved original state is missing or unsupported; no change made.")
+                return
+            }
             busy = true
         }
 
