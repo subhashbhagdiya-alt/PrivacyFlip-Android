@@ -42,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.json.JSONArray
@@ -108,7 +109,7 @@ private fun PrivacyFlipApp(prefs: android.content.SharedPreferences) {
             topBar = {
                 TopAppBar(title = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Icon(Icons.Default.Lock, null, tint = MaterialTheme.colorScheme.primary)
+                        Icon(painter = painterResource(R.drawable.ic_privacy_flip_foreground), contentDescription = "Privacy Flip logo", modifier = Modifier.size(32.dp), tint = Color.Unspecified)
                         Column {
                             Text("Privacy Flip", fontWeight = FontWeight.Bold)
                             Text("Private by design · offline-first", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -917,6 +918,7 @@ private fun AppDetailsCard() {
                     AppDetailLine("Target Android API", targetSdk.toString())
                     AppDetailLine("Storage", "Rules and logs saved locally on this device")
                     AppDetailLine("Network", "No INTERNET permission declared")
+                    AppDetailLine("Declared permissions", "Notifications for monitoring (Android 13+), foreground service, run-after-boot receiver; optional Device Admin for screen lock. Shizuku access is separately approved by the user.")
                     AppDetailLine("Works without Shizuku", "Rules, history, JSON backup, theme, Android settings shortcuts, Device Admin screen lock, and Do Not Disturb after its special access is granted")
                     AppDetailLine("Advanced automation", "Mobile Data, Wi-Fi, Bluetooth, Location and sensor privacy lock/unlock actions currently use optional Shizuku access and need device-level testing")
                     AppDetailLine("Permission principle", "Privacy Flip does not silently grant itself permissions. Android opens system settings when user approval is needed.")
