@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.app.NotificationManager
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 import android.net.Uri
 import android.provider.Settings
 import android.os.Build
@@ -549,6 +551,68 @@ private fun LogsScreen(modifier: Modifier, logs: String, onClear: () -> Unit) {
 }
 
 @Composable
+@Composable
+private fun DeviceAdminCard() {
+    val context = LocalContext.current
+    val policyManager = remember(context) { context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager }
+    val adminComponent = remember(context) { ComponentName(context, PrivacyFlipAdminReceiver::class.java) }
+    var isAdmin by remember { mutableStateOf(policyManager.isAdminActive(adminComponent)) }
+
+    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Device Admin (optional)", fontWeight = FontWeight.Bold)
+            Text(
+                if (isAdmin) "Enabled. Privacy Flip can request an immediate screen lock. This permission does not grant Mobile Data ON/OFF access."
+                else "Optional permission for the Lock screen now feature. It does not replace Shizuku or allow Mobile Data ON/OFF.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Button(
+                    onClick = {
+                        if (policyManager.isAdminActive(adminComponent)) {
+                            isAdmin = true
+                            Toast.makeText(context, "Device Admin is already enabled", Toast.LENGTH_SHORT).show()
+                        } else {
+                            val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+                                putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent)
+                                putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                                    "Allow Privacy Flip to lock the screen only when you choose the Lock screen now action.")
+                            }
+                            runCatching { context.startActivity(intent) }
+                                .onFailure { Toast.makeText(context, "Could not open Device Admin setup", Toast.LENGTH_LONG).show() }
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                ) { Text(if (isAdmin) "Admin enabled" else "Enable Device Admin") }
+                OutlinedButton(
+                    onClick = {
+                        isAdmin = policyManager.isAdminActive(adminComponent)
+                        if (isAdmin) {
+                            runCatching { policyManager.lockNow() }
+                                .onSuccess { Toast.makeText(context, "Screen locked", Toast.LENGTH_SHORT).show() }
+                                .onFailure { Toast.makeText(context, "Could not lock screen", Toast.LENGTH_LONG).show() }
+                        } else {
+                            Toast.makeText(context, "Enable Device Admin first", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                ) { Text("Lock screen now") }
+            }
+            OutlinedButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))
+                    }.onFailure {
+                        Toast.makeText(context, "Open Android Security settings to deactivate Device Admin", Toast.LENGTH_LONG).show()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Android Security settings") }
+        }
+    }
+}
+
 private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean, backupJson: String, monitorStatusTick: Int,
     onDark: (Boolean) -> Unit, onDeveloper: (Boolean) -> Unit, onRestore: (String) -> Unit) {
     val context = LocalContext.current
@@ -638,6 +702,7 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
         item { SettingRow("Dark theme", "Use a darker interface", dark, onDark) }
         item { SettingRow("Advanced Developer Mode", "Show diagnostic details and advanced options", developer, onDeveloper) }
         item { ShizukuSetupCard() }
+        item { DeviceAdminCard() }
         item {
             Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
