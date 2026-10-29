@@ -917,7 +917,12 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
                     "Log only (no system change)"
                 ).forEach { option ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = action == option, onClick = { action = option; if (option == MobileDataShizuku.ACTION_NAME) trigger = MobileDataShizuku.TRIGGER_NAME })
+                        RadioButton(selected = action == option, onClick = {
+                            action = option
+                            trigger = if (option == MobileDataShizuku.ACTION_NAME) MobileDataShizuku.TRIGGER_NAME
+                                else if (option.startsWith("Auto:")) "Phone locks / screen turns OFF"
+                                else trigger
+                        })
                         Text(option)
                     }
                 }
