@@ -42,6 +42,7 @@ class ScreenMonitorService : Service() {
                 val trigger = when (intent?.action) {
                     Intent.ACTION_SCREEN_ON -> "Screen turns ON"
                     Intent.ACTION_SCREEN_OFF -> "Screen turns OFF"
+                    Intent.ACTION_USER_PRESENT -> "Phone unlocked"
                     else -> return
                 }
                 val prefs = getSharedPreferences("privacy_flip", Context.MODE_PRIVATE)
@@ -71,6 +72,7 @@ class ScreenMonitorService : Service() {
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_USER_PRESENT)
         }
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
         else {
