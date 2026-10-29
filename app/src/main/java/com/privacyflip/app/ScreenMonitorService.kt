@@ -64,15 +64,20 @@ class ScreenMonitorService : Service() {
                     val array = JSONArray(raw)
                     val updated = JSONArray()
                     val messages = mutableListOf<String>()
+                    val matchedRules = mutableListOf<Pair<String, String>>()
                     for (i in 0 until array.length()) {
                         val item = array.getJSONObject(i)
                         if (item.optBoolean("enabled", true) && item.optString("trigger") == trigger) {
                             item.put("runs", (item.optInt("runs") + 1).coerceAtMost(1_000_000))
-                            messages.add("Trigger detected: $trigger · ${item.optString("name")}. Demo action logged; system settings unchanged.")
+                            val name = item.optString("name", "Privacy rule")
+                            val action = item.optString("action", "Log only (no system change)")
+                            matchedRules.add(name to action)
+                            messages.add("Trigger detected: $trigger · $name. Tap the notification to open the selected Android settings; system changes require your confirmation.")
                         }
                         updated.put(item)
                     }
                     prefs.edit().putString("rules", updated.toString()).apply()
+                    matchedRules.forEachIndexed { index, match -> postRuleActionNotification(match.first, match.second, index) }
                     messages
                 }.getOrDefault(emptyList())
                 if (rules.isNotEmpty()) {
@@ -91,6 +96,30 @@ class ScreenMonitorService : Service() {
             @Suppress("DEPRECATION")
             registerReceiver(receiver, filter)
         }
+    }
+
+    private fun postRuleActionNotification(ruleName: String, action: String, index: Int) {
+        if (action.equals("Log only (no system change)", ignoreCase = true)) return
+        val pending = PendingIntent.getActivity(
+            this,
+            (ruleName.hashCode() * 31 + index) and 0x7fffffff,
+            Intent(this, RuleActionActivity::class.java).putExtra(RuleActionActivity.EXTRA_ACTION, action),
+            PendingIntent.FLAG_UPDATE_CURRENT or
+                (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+        )
+        val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, "privacy_flip_monitor")
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(this)
+        }.setSmallIcon(R.drawable.ic_privacy_flip)
+            .setContentTitle("Privacy rule triggered: $ruleName")
+            .setContentText("Tap to open: $action")
+            .setContentIntent(pending)
+            .setAutoCancel(true)
+            .build()
+        getSystemService(NotificationManager::class.java)
+            .notify(2500 + ((ruleName.hashCode() and 0x7fffffff) % 10000), notification)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
