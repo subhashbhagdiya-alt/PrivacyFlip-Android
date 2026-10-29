@@ -4,6 +4,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.Uri
+import android.provider.Settings
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
@@ -537,6 +539,17 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
         item {
             Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Android privacy shortcuts", fontWeight = FontWeight.Bold)
+                    Text("These open Android settings. You stay in control and must confirm any system changes there.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutlinedButton(onClick = { openSettingsPage(context, Intent(Settings.ACTION_PRIVACY_SETTINGS), "Privacy settings") }, modifier = Modifier.fillMaxWidth()) { Text("Open Privacy settings") }
+                    OutlinedButton(onClick = { openSettingsPage(context, Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply { data = Uri.parse("package:${context.packageName}") }, "App permissions") }, modifier = Modifier.fillMaxWidth()) { Text("App info & permissions") }
+                    OutlinedButton(onClick = { openSettingsPage(context, Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName), "Notification settings") }, modifier = Modifier.fillMaxWidth()) { Text("App notification settings") }
+                }
+            }
+        }
+        item {
+            Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Local backup", fontWeight = FontWeight.Bold)
                     Text("Export rules and preferences to a JSON file on your device.", style = MaterialTheme.typography.bodySmall)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -558,6 +571,14 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
         }
         item { Text("Privacy Flip 0.2.0 · Offline-first prototype", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
+}
+
+
+private fun openSettingsPage(context: Context, intent: Intent, label: String) {
+    runCatching { context.startActivity(intent) }
+        .onFailure {
+            Toast.makeText(context, "$label could not be opened on this device.", Toast.LENGTH_LONG).show()
+        }
 }
 
 @Composable
