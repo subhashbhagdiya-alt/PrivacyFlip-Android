@@ -787,6 +787,63 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
 }
 
 
+@Composable
+private fun ShizukuSetupCard() {
+    val context = LocalContext.current
+    var status by remember { mutableStateOf(MobileDataShizuku.status()) }
+    val requestCode = 4103
+    DisposableEffect(Unit) {
+        val received = Shizuku.OnBinderReceivedListener { status = MobileDataShizuku.status() }
+        val dead = Shizuku.OnBinderDeadListener { status = MobileDataShizuku.status() }
+        val permissionResult = Shizuku.OnRequestPermissionResultListener { code, result ->
+            if (code == requestCode) {
+                status = if (result == android.content.pm.PackageManager.PERMISSION_GRANTED)
+                    "Shizuku permission granted. Create the Mobile Data Lock/Unlock rule and start screen monitoring."
+                else "Shizuku permission denied. Mobile Data automation will not run until permission is granted."
+            }
+        }
+        Shizuku.addBinderReceivedListenerSticky(received)
+        Shizuku.addBinderDeadListener(dead)
+        Shizuku.addRequestPermissionResultListener(permissionResult)
+        onDispose {
+            Shizuku.removeBinderReceivedListener(received)
+            Shizuku.removeBinderDeadListener(dead)
+            Shizuku.removeRequestPermissionResultListener(permissionResult)
+        }
+    }
+    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Shizuku system access", fontWeight = FontWeight.Bold)
+            Text("Optional local-only bridge for Mobile Data automation. On Android 11+, start Shizuku using Wireless Debugging; after reboot, Shizuku may need to be started again.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(status, style = MaterialTheme.typography.bodyMedium)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = {
+                    status = MobileDataShizuku.status()
+                    Toast.makeText(context, status, Toast.LENGTH_LONG).show()
+                }, modifier = Modifier.weight(1f)) { Text("Refresh status") }
+                Button(onClick = {
+                    try {
+                        if (!Shizuku.pingBinder()) {
+                            val launch = context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")
+                            if (launch != null) context.startActivity(launch)
+                            else Toast.makeText(context, "Install Shizuku first, then start it using Wireless Debugging.", Toast.LENGTH_LONG).show()
+                        } else if (Shizuku.isPreV11()) {
+                            Toast.makeText(context, "Update Shizuku to a supported version.", Toast.LENGTH_LONG).show()
+                        } else if (Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                            status = "Shizuku permission is already granted."
+                        } else {
+                            Shizuku.requestPermission(requestCode)
+                        }
+                    } catch (t: Throwable) {
+                        status = "Could not request Shizuku access: " + (t.message ?: t.javaClass.simpleName)
+                    }
+                }, modifier = Modifier.weight(1f)) { Text("Connect / Grant") }
+            }
+            Text("Important: command completion is reported from the Android shell command. Your specific phone still needs a physical-device test. If Shizuku is stopped or lacks access, Privacy Flip logs failure instead of claiming success.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        }
+    }
+}
+
 private fun openSettingsPage(context: Context, intent: Intent, label: String) {
     runCatching { context.startActivity(intent) }
         .onFailure {
