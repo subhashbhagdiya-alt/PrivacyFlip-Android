@@ -1,38 +1,44 @@
 # Privacy Flip — Offline Android Lock/Unlock Automation
 
-Privacy Flip is a native Kotlin + Jetpack Compose Android app. Rules, logs, and preferences remain local. The app declares no `INTERNET` permission; the optional Shizuku integration uses local Android IPC and the device's system shell.
+Privacy Flip is a native Kotlin + Jetpack Compose Android app. Rules, logs, and preferences remain local. The app manifest does not declare `INTERNET`; optional Shizuku calls use local Android IPC and the device's shell identity.
 
 ## v0.3.0 features
 
 - Local rule creation, search, enable/disable, manual run, activity log, and JSON backup/restore.
-- Optional foreground screen monitor. User must explicitly start it; Android notifications and background limits still apply.
-- Do Not Disturb Lock/Unlock profile with Android Notification Policy Access.
-- **Mobile Data via Shizuku (OFF on Lock / ON on Unlock)**: create one rule using the dedicated `Lock / Unlock (Mobile Data)` trigger and the Mobile Data action. The rule matches screen-off and phone-unlocked events. It calls the fixed `cmd phone data disable/enable` system-shell command through a Shizuku UserService; arbitrary commands are not accepted.
-- Shizuku status/permission setup in Settings. The user must install and start Shizuku separately, then grant Privacy Flip's Shizuku permission.
-- Scrollable rule builder so lower trigger/action options remain accessible.
-- Offline-first; no account, server, or app network permission.
+- Optional foreground screen monitor started by the user; Android notifications, battery rules and OEM limits still apply.
+- Do Not Disturb Lock/Unlock handling with Android Notification Policy Access.
+- Optional Shizuku bridge that exposes a fixed allowlist of lock/unlock system-control commands. No arbitrary shell input is accepted.
+- Scrollable rule builder and Shizuku status/permission card.
 
-## Set up Mobile Data Lock/Unlock
+## Set up automatic lock/unlock controls
 
-1. Install Shizuku from its official project and start it. On Android 11 or later, Shizuku can be started with Wireless Debugging; after a reboot, it may need to be started again.
-2. Open Privacy Flip → Settings → **Shizuku system access** → Connect / Grant. Approve the Shizuku permission prompt.
-3. Open Rules → Add. Give the rule a name and choose **Mobile Data via Shizuku (OFF on Lock / ON on Unlock)**. The builder automatically selects **Lock / Unlock (Mobile Data)** as its trigger.
-4. Save and enable that rule. In Settings, start **Background screen monitoring** and leave it enabled.
-5. Lock the phone: Privacy Flip requests Mobile Data OFF. Unlock the phone: it requests Mobile Data ON. Check the Activity log for the command result.
+1. Install Shizuku using its official project and start it. On Android 11+, use Wireless Debugging; after a reboot, Shizuku may need to be started again.
+2. Open Privacy Flip → Settings → **Shizuku system access** → **Connect / Grant**. Approve the Shizuku permission prompt.
+3. Open Rules → Add. Choose one of the `Auto:` actions. The rule editor selects **Phone locks / screen turns OFF** as the paired trigger.
+4. Save and enable the rule. In Settings, start **Background screen monitoring** and leave it enabled.
+5. Lock the phone and unlock it. Radio-like controls request OFF on screen-off and ON on unlock. Camera/Microphone privacy controls request privacy ON while locked and OFF when unlocked.
+6. Check Activity for the shell result. On command failure the app records the failure and posts a notification; a success exit code means the shell command returned successfully, not that the OEM switch state was independently verified.
+
+### Current `Auto:` actions
+
+- **Mobile data:** `svc data disable/enable` via the system shell. AOSP exposes this command, but OEM/carrier builds can still restrict or change behavior.
+- **Wi-Fi:** `svc wifi disable/enable`; behavior may vary by Android version/device policy.
+- **Bluetooth:** fixed `svc bluetooth disable/enable` command; only works on system builds that expose this command.
+- **Location:** `cmd location set-location-enabled false/true --user current`.
+- **Camera privacy / Microphone privacy:** Android 12+ `cmd sensor_privacy enable/disable USER_ID camera|microphone`.
 
 ## Important limitations
 
-- This uses the shell command exposed by Android (`cmd phone data enable/disable`) through Shizuku's shell/root identity. A regular Android app permission alone is insufficient for Mobile Data control.
-- Shizuku must be running and authorized when the event occurs. On non-root setups it may need to be restarted after reboot. If it is unavailable, Privacy Flip records a failure and does not claim success.
-- `screen turns off` is the public Android broadcast used for lock/screen-off; it is not a guarantee that the device's secure keyguard has locked. Unlock is detected by `ACTION_USER_PRESENT`.
-- A zero exit code means the command completed successfully; the app does not independently read the mobile-data switch state on every OEM/dual-SIM configuration. Physical-device verification on the target phone is still required.
-- Android/OEM shell restrictions may vary. If `cmd phone data` returns a permission or command error on a particular device, this route will fail there; do not treat the feature as supported on that device until a real test passes.
-- Wi-Fi, GPS, Bluetooth, camera/microphone privacy, and mobile data have different Android restrictions. Other action labels that open Settings remain shortcuts, not automatic toggles.
-- Starting/stopping the screen-monitor service, notifications, battery optimization and OEM background policies can affect event delivery. Keep monitoring enabled and verify on the actual phone.
+- This is not an internet-dependent feature. The app doesn't need cellular data to detect local screen events or issue a local Shizuku request; turning Mobile Data off will not directly disable local app logic.
+- Normal Android app permissions do not grant direct Mobile Data control. Shizuku must be running and Privacy Flip's Shizuku permission must be granted. On non-root setups, restart Shizuku after reboot when required.
+- Android `ACTION_SCREEN_OFF` indicates the screen turned off, not a guaranteed secure-keyguard lock. `ACTION_USER_PRESENT` indicates the user became present/unlocked.
+- Android shell command availability can vary by OEM, Android release, device policy, carrier configuration and multi-SIM setup. Keep a feature enabled only after confirming it works on your device. No physical-device test has yet verified the current build on the user's iQOO Z3.
+- Actions not labeled `Auto:` are settings shortcuts, not automatic ON/OFF toggles.
+- GitHub Actions verifies compilation and APK packaging only; it does not prove mobile-data switching or background trigger delivery on a physical phone.
 
 ## Build
 
-GitHub Actions builds a debug APK using JDK 17 and Gradle 8.9. A successful build proves compile/package only; it does not substitute for the Shizuku/device behavior test.
+GitHub Actions builds a debug APK with JDK 17 and Gradle 8.9. Download the `PrivacyFlip-debug-apk` artifact from a successful Actions run.
 
 Package: `com.privacyflip.app`  
 Target: Android 8.0+ (API 26+)
