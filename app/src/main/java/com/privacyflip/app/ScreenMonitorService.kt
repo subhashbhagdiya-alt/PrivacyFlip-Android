@@ -94,12 +94,23 @@ class ScreenMonitorService : Service() {
                                 // Camera/microphone privacy toggles instead turn privacy ON while locked.
                                 val privacySensor = pairedOption == "camera_privacy" || pairedOption == "microphone_privacy"
                                 val enabled = if (trigger == "Screen turns OFF") privacySensor else !privacySensor
-                                ShizukuAutomation.apply(this@ScreenMonitorService, pairedOption, enabled) { result ->
-                                    if (result.startsWith("OK:")) {
-                                        appendLog(prefs, "$trigger · $name: $result")
-                                    } else {
-                                        appendLog(prefs, "$trigger · $name FAILED: $result")
-                                        postAutomationFailureNotification(name, result)
+                                if (pairedOption == "mobile_data") {
+                                    // Use the dedicated mobile-data service and its explicit exit-code result.
+                                    // Other controls use isolated per-option shell services.
+                                    MobileDataShizuku.setMobileDataEnabled(this@ScreenMonitorService, enabled) { result ->
+                                        recordMobileDataResult(name, enabled, result)
+                                        if (!result.startsWith("OK|")) {
+                                            postAutomationFailureNotification(name, result.substringAfter("|", result))
+                                        }
+                                    }
+                                } else {
+                                    ShizukuAutomation.apply(this@ScreenMonitorService, pairedOption, enabled) { result ->
+                                        if (result.startsWith("OK:")) {
+                                            appendLog(prefs, "$trigger · $name: $result")
+                                        } else {
+                                            appendLog(prefs, "$trigger · $name FAILED: $result")
+                                            postAutomationFailureNotification(name, result)
+                                        }
                                     }
                                 }
                                 messages.add("$trigger · $name: automatic system command requested.")
