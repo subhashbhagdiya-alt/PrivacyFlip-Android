@@ -14,6 +14,7 @@ Privacy Flip is an offline-first native Android prototype built with Kotlin and 
 - Screen ON/OFF triggers detected while the app UI is active; matching enabled rules update the local run count and activity log
 - Phone-start trigger uses Android BOOT_COMPLETED after the app has been launched at least once; matching enabled rules update local counts and logs
 - No network permission or account required
+- Settings shortcut opens Android's own app-details screen so users can review permissions manually; system permissions are not changed silently
 - GitHub Actions workflow builds a debug APK and uploads it as an artifact
 
 ## Important limitations
