@@ -692,7 +692,7 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
                         modifier = Modifier.fillMaxWidth()
                     ) { Text(if (monitoring) "Stop screen monitoring" else "Start screen monitoring") }
                     Text(
-                        "Android may stop background services under battery restrictions. Only the dedicated Mobile Data Lock/Unlock rule uses Shizuku; Wi-Fi, GPS, camera/microphone and other shortcuts remain subject to Android restrictions.",
+                        "Android may stop background services under battery restrictions. All Auto: lock/unlock controls use Shizuku; ordinary settings shortcuts only open Android controls. Each automatic action still needs device-level verification.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error
                     )
