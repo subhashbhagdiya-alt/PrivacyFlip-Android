@@ -104,7 +104,7 @@ private fun PrivacyFlipApp(prefs: android.content.SharedPreferences) {
             topBar = {
                 TopAppBar(title = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Icon(Icons.Default.Shield, null, tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.Lock, null, tint = MaterialTheme.colorScheme.primary)
                         Column {
                             Text("Privacy Flip", fontWeight = FontWeight.Bold)
                             Text("Private by design · offline-first", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -801,7 +801,7 @@ private fun SettingRow(title: String, subtitle: String, checked: Boolean, onChan
 private fun EmptyState(title: String, subtitle: String) {
     Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(Icons.Default.Shield, null, Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
+            Icon(Icons.Default.Lock, null, Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
