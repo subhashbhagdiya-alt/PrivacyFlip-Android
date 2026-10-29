@@ -14,8 +14,17 @@ Privacy Flip is a native Kotlin + Jetpack Compose Android app. Rules, logs, and 
   - **Auto: Location OFF on lock / ON on unlock**
   - **Auto: Camera privacy ON on lock / OFF on unlock**
   - **Auto: Microphone privacy ON on lock / OFF on unlock**
+- **App Details** page in Settings: version, package name, Android compatibility, privacy model, supported actions and limitations.
+- Optional **Device Admin** permission for the explicit screen-lock action only. It does not grant Mobile Data or full system control.
+- Normal app features are available without Shizuku; advanced direct lock/unlock system automation still uses optional Shizuku where Android restricts normal apps.
 - Shizuku status and permission setup in Settings. The user must install and start Shizuku separately and grant Privacy Flip permission.
 - Regular settings shortcuts remain available for actions that Android does not allow this app to automate directly.
+
+## App details and permission model
+
+Open Privacy Flip → Settings → **App Details** to view the installed version, package ID, Android API details, local-storage/network model, and which features require optional Shizuku access. Use **Android system app details** for the system-provided Android App Info page.
+
+Device Admin is optional and requests the force-lock policy only. It is only used by the explicit screen-lock action; it is not a replacement for system-level access and does not toggle Mobile Data.
 
 ## Set up automatic lock/unlock actions
 
