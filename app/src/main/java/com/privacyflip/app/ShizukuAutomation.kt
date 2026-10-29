@@ -38,9 +38,9 @@ object ShizukuAutomation {
         val args = Shizuku.UserServiceArgs(
             ComponentName(appContext, FlipShellUserService::class.java)
         ).daemon(false)
-            .tag("privacy_flip_shell")
+            .tag("privacy_flip_" + option)
             .version(1)
-            .processNameSuffix("privacy_flip_shell")
+            .processNameSuffix("privacy_flip_" + option)
 
         val completed = AtomicBoolean(false)
         lateinit var connection: ServiceConnection
