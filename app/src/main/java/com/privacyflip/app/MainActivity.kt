@@ -643,7 +643,7 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Background screen monitoring", fontWeight = FontWeight.Bold)
                     Text(
-                        if (serviceRunning) "Service reports running. Matching screen/unlock rules can show action notifications."
+                        if (serviceRunning) "Service reports running. Selected Shizuku controls apply automatically without a notification tap; shortcuts may still show notifications."
                         else if (monitoring) "Monitoring was enabled, but the service is not currently reporting as running."
                         else "Enable a persistent notification and monitor screen ON/OFF triggers while this service runs.",
                         style = MaterialTheme.typography.bodySmall,
