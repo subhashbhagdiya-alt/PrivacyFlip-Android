@@ -22,7 +22,7 @@ class RuleActionActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val action = intent.getStringExtra(EXTRA_ACTION).orEmpty().trim().lowercase()
-        if (action == "toggle do not disturb") {
+        if (action == "toggle do not disturb" || action == "enable do not disturb" || action == "disable do not disturb") {
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             if (!manager.isNotificationPolicyAccessGranted) {
                 runCatching { startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)) }
@@ -30,15 +30,18 @@ class RuleActionActivity : Activity() {
                 finish()
                 return
             }
+            val enable = when (action) {
+                "enable do not disturb" -> true
+                "disable do not disturb" -> false
+                else -> manager.currentInterruptionFilter == NotificationManager.INTERRUPTION_FILTER_ALL
+            }
             runCatching {
                 manager.setInterruptionFilter(
-                    if (manager.currentInterruptionFilter == NotificationManager.INTERRUPTION_FILTER_ALL)
-                        NotificationManager.INTERRUPTION_FILTER_PRIORITY
+                    if (enable) NotificationManager.INTERRUPTION_FILTER_PRIORITY
                     else NotificationManager.INTERRUPTION_FILTER_ALL
                 )
             }.onSuccess {
-                val enabled = manager.currentInterruptionFilter != NotificationManager.INTERRUPTION_FILTER_ALL
-                Toast.makeText(this, "Do Not Disturb " + if (enabled) "enabled" else "disabled", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Do Not Disturb " + if (enable) "enabled" else "disabled", Toast.LENGTH_SHORT).show()
             }.onFailure {
                 Toast.makeText(this, "Could not change Do Not Disturb", Toast.LENGTH_LONG).show()
             }
