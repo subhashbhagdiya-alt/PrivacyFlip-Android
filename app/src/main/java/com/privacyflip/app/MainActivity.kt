@@ -315,6 +315,26 @@ private fun runRule(context: Context, rule: FlipRule, rules: MutableList<FlipRul
             Intent(Settings.ACTION_PRIVACY_SETTINGS)
         action == "open notification settings" || action == "notification settings" ->
             Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        action == "open display settings" ->
+            Intent(Settings.ACTION_DISPLAY_SETTINGS)
+        action == "open sound settings" ->
+            Intent(Settings.ACTION_SOUND_SETTINGS)
+        action == "open battery settings" ->
+            Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS)
+        action == "open vpn settings" ->
+            Intent(Settings.ACTION_VPN_SETTINGS)
+        action == "open accessibility settings" ->
+            Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+        action == "open security settings" ->
+            Intent(Settings.ACTION_SECURITY_SETTINGS)
+        action == "open storage settings" ->
+            Intent(Settings.ACTION_INTERNAL_STORAGE_SETTINGS)
+        action == "open nfc settings" ->
+            Intent(Settings.ACTION_NFC_SETTINGS)
+        action == "open cast settings" ->
+            Intent(Settings.ACTION_CAST_SETTINGS)
+        action == "open usage access settings" ->
+            Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
         else -> null
     }
     if (intent == null) {
@@ -1246,6 +1266,16 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
                     "Open app permissions",
                     "Open Privacy settings",
                     "Open notification settings",
+                    "Open Display settings",
+                    "Open Sound settings",
+                    "Open Battery settings",
+                    "Open VPN settings",
+                    "Open Accessibility settings",
+                    "Open Security settings",
+                    "Open Storage settings",
+                    "Open NFC settings",
+                    "Open Cast settings",
+                    "Open Usage access settings",
                     "Toggle Do Not Disturb",
                     "Lock screen now (Device Admin)",
                     "Log only (no system change)"
