@@ -65,6 +65,7 @@ private fun PrivacyFlipApp(prefs: android.content.SharedPreferences) {
     var showAdd by remember { mutableStateOf(false) }
     var ruleToDelete by remember { mutableStateOf<FlipRule?>(null) }
     var logs by remember { mutableStateOf(prefs.getString("logs", "Welcome to Privacy Flip.\n") ?: "") }
+    var monitorStatusTick by remember { mutableIntStateOf(0) }
     val rules = remember { mutableStateListOf<FlipRule>().apply { addAll(loadRules(prefs)) } }
     val backupJson = JSONObject().put("app", "Privacy Flip").put("version", 1)
         .put("paused", paused).put("darkTheme", dark).put("developerMode", developer)
@@ -133,7 +134,7 @@ private fun PrivacyFlipApp(prefs: android.content.SharedPreferences) {
                     { rule -> runRule(rule, rules, paused, ::saveAll, ::log) },
                     { rule -> ruleToDelete = rule })
                 Screen.LOGS -> LogsScreen(Modifier.padding(padding), logs, { logs = ""; saveAll() })
-                Screen.SETTINGS -> SettingsScreen(Modifier.padding(padding), dark, developer, backupJson,
+                Screen.SETTINGS -> SettingsScreen(Modifier.padding(padding), dark, developer, backupJson, monitorStatusTick,
                     { dark = it; saveAll() },
                     { developer = it; saveAll(); log("Advanced Developer Mode ${if (it) "enabled" else "disabled"}") },
                     { raw ->
@@ -471,11 +472,14 @@ private fun LogsScreen(modifier: Modifier, logs: String, onClear: () -> Unit) {
 }
 
 @Composable
-private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean, backupJson: String,
+private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean, backupJson: String, monitorStatusTick: Int,
     onDark: (Boolean) -> Unit, onDeveloper: (Boolean) -> Unit, onRestore: (String) -> Unit) {
     val context = LocalContext.current
     val appPrefs = remember(context) { context.getSharedPreferences("privacy_flip", Context.MODE_PRIVATE) }
     var monitoring by remember { mutableStateOf(appPrefs.getBoolean("screen_monitor_enabled", false)) }
+    val serviceRunning = remember(monitorStatusTick, monitoring) {
+        monitoring && appPrefs.getBoolean("screen_monitor_enabled", false)
+    }
     var pendingImport by remember { mutableStateOf<String?>(null) }
     val startMonitoring = {
         runCatching {
@@ -562,7 +566,7 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Background screen monitoring", fontWeight = FontWeight.Bold)
                     Text(
-                        if (monitoring) "Monitoring is enabled. Screen triggers can be logged while the app is in the background; actions remain demo-only."
+                        if (serviceRunning) "Monitoring is enabled by your saved preference. Screen triggers can be logged while the service runs; actions remain demo-only."
                         else "Enable a persistent notification and monitor screen ON/OFF triggers while this service runs.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
