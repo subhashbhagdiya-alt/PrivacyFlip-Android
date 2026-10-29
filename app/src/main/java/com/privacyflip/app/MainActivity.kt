@@ -408,6 +408,25 @@ private fun RuleCard(rule: FlipRule, onToggle: (Boolean) -> Unit, onRun: () -> U
                 if (showToggle) Switch(checked = rule.enabled, onCheckedChange = onToggle)
             }
             Text("Action: ${rule.action}", style = MaterialTheme.typography.bodyMedium)
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.55f)
+            ) {
+                Text(
+                    "DEMO ONLY · This rule does not change Android settings",
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            if (rule.trigger.contains("planned", ignoreCase = true)) {
+                Text(
+                    "This trigger is planned and is not active yet.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Runs: ${rule.runs}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
                 TextButton(onClick = onRun) { Icon(Icons.Default.PlayArrow, null); Text("Run now") }
