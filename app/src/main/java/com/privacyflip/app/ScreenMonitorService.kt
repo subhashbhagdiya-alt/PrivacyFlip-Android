@@ -120,6 +120,36 @@ class ScreenMonitorService : Service() {
         }
     }
 
+    private fun recordMobileDataResult(ruleName: String, enabled: Boolean, result: String) {
+        val success = result.startsWith("OK|")
+        val requested = if (enabled) "ON" else "OFF"
+        val detail = result.substringAfter("|", result).take(220)
+        val message = if (success)
+            "Mobile Data " + requested + " command completed (shell exit 0); actual device state was not independently queried. Rule: " + ruleName + "."
+        else "Mobile Data " + requested + " FAILED. Rule: " + ruleName + ". " + detail
+        val prefs = getSharedPreferences("privacy_flip", Context.MODE_PRIVATE)
+        val previous = prefs.getString("logs", "") ?: ""
+        prefs.edit().putString("logs", (message + "\n" + previous).take(6000)).apply()
+        if (!success) {
+            runCatching {
+                val intent = Intent(this, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
+                val pending = PendingIntent.getActivity(
+                    this, 3301, intent, PendingIntent.FLAG_UPDATE_CURRENT or
+                        (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+                )
+                val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                    Notification.Builder(this, "privacy_flip_monitor") else Notification.Builder(this)
+                builder.setSmallIcon(R.drawable.ic_privacy_flip)
+                    .setContentTitle("Privacy Flip: Mobile Data action failed")
+                    .setContentText(detail.take(120))
+                    .setContentIntent(pending).setAutoCancel(true)
+                getSystemService(NotificationManager::class.java).notify(3301, builder.build())
+            }
+        }
+    }
+
     private fun applyDoNotDisturb(action: String): Boolean {
         val manager = getSystemService(NotificationManager::class.java)
         if (!manager.isNotificationPolicyAccessGranted) return false
