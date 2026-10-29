@@ -220,6 +220,10 @@ private fun runRule(context: Context, rule: FlipRule, rules: MutableList<FlipRul
     if (paused) { log("Skipped '${rule.name}': Master Pause is enabled"); return }
     if (!rule.enabled) { log("Skipped '${rule.name}': rule is disabled"); return }
     val action = rule.action.trim().lowercase()
+    if (action == "log only (no system change)") {
+        log("'${rule.name}': Log-only action selected; no Android setting was opened.")
+        return
+    }
     val intent = when {
         action == "open wi-fi settings" || action == "wifi settings" ->
             Intent(Settings.ACTION_WIFI_SETTINGS)
