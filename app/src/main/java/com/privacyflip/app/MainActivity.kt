@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.app.NotificationManager
 import android.net.Uri
 import android.provider.Settings
 import android.os.Build
@@ -221,7 +222,31 @@ private fun runRule(context: Context, rule: FlipRule, rules: MutableList<FlipRul
     if (!rule.enabled) { log("Skipped '${rule.name}': rule is disabled"); return }
     val action = rule.action.trim().lowercase()
     if (action == "log only (no system change)") {
-        log("'${rule.name}': Log-only action selected; no Android setting was opened.")
+        log("Log-only action selected; no Android setting was opened.")
+        return
+    }
+    if (action == "toggle do not disturb") {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (!manager.isNotificationPolicyAccessGranted) {
+            runCatching { context.startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)) }
+                .onSuccess { log("Allow Do Not Disturb access in Android settings, then run this rule again.") }
+                .onFailure { Toast.makeText(context, "Could not open Do Not Disturb access settings", Toast.LENGTH_LONG).show() }
+            return
+        }
+        runCatching {
+            manager.setInterruptionFilter(
+                if (manager.currentInterruptionFilter == NotificationManager.INTERRUPTION_FILTER_ALL)
+                    NotificationManager.INTERRUPTION_FILTER_PRIORITY
+                else NotificationManager.INTERRUPTION_FILTER_ALL
+            )
+        }.onSuccess {
+            val enabled = manager.currentInterruptionFilter != NotificationManager.INTERRUPTION_FILTER_ALL
+            log("Do Not Disturb " + (if (enabled) "enabled" else "disabled"))
+            Toast.makeText(context, "Do Not Disturb " + (if (enabled) "enabled" else "disabled"), Toast.LENGTH_SHORT).show()
+        }.onFailure {
+            log("Do Not Disturb action failed: " + (it.message ?: "access denied"))
+            Toast.makeText(context, "Could not change Do Not Disturb", Toast.LENGTH_LONG).show()
+        }
         return
     }
     val intent = when {
@@ -803,6 +828,7 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
                     "Open app permissions",
                     "Open Privacy settings",
                     "Open notification settings",
+                    "Toggle Do Not Disturb",
                     "Log only (no system change)"
                 ).forEach { option ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
