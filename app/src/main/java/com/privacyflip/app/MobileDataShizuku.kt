@@ -77,6 +77,11 @@ object MobileDataShizuku {
             Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
     } catch (_: Throwable) { false }
 
+    fun warmConnect(context: Context, callback: ((String) -> Unit)? = null) {
+        if (!hasPermission()) { callback?.invoke(status()); return }
+        getMobileDataState(context.applicationContext) { result -> callback?.invoke(result) }
+    }
+
     fun setMobileDataEnabled(context: Context, enabled: Boolean, callback: (String) -> Unit) {
         if (!Shizuku.pingBinder()) {
             callback("ERROR|Shizuku is not running. Start Shizuku after reboot and try again.")
