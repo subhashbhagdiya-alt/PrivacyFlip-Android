@@ -504,6 +504,8 @@ private fun LogsScreen(modifier: Modifier, logs: String, onClear: () -> Unit) {
 private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean, backupJson: String,
     onDark: (Boolean) -> Unit, onDeveloper: (Boolean) -> Unit, onRestore: (String) -> Unit) {
     val context = LocalContext.current
+    val appPrefs = remember(context) { context.getSharedPreferences("privacy_flip", Context.MODE_PRIVATE) }
+    var monitoring by remember { mutableStateOf(appPrefs.getBoolean("screen_monitor_enabled", false)) }
     var pendingImport by remember { mutableStateOf<String?>(null) }
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -567,6 +569,46 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
         }
         item { SettingRow("Dark theme", "Use a darker interface", dark, onDark) }
         item { SettingRow("Advanced Developer Mode", "Show diagnostic details and advanced options", developer, onDeveloper) }
+        item {
+            Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Background screen monitoring", fontWeight = FontWeight.Bold)
+                    Text(
+                        if (monitoring) "Monitoring is enabled. Screen triggers can be logged while the app is in the background; actions remain demo-only."
+                        else "Enable a persistent notification and monitor screen ON/OFF triggers while this service runs.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Button(
+                        onClick = {
+                            runCatching {
+                                if (monitoring) {
+                                    context.stopService(Intent(context, ScreenMonitorService::class.java))
+                                    monitoring = false
+                                    appPrefs.edit().putBoolean("screen_monitor_enabled", false).apply()
+                                    Toast.makeText(context, "Screen monitoring stopped", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    val intent = Intent(context, ScreenMonitorService::class.java)
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
+                                    else context.startService(intent)
+                                    monitoring = true
+                                    appPrefs.edit().putBoolean("screen_monitor_enabled", true).apply()
+                                    Toast.makeText(context, "Screen monitoring started", Toast.LENGTH_SHORT).show()
+                                }
+                            }.onFailure {
+                                Toast.makeText(context, "Could not change monitoring: ${it.message ?: "unknown error"}", Toast.LENGTH_LONG).show()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(if (monitoring) "Stop screen monitoring" else "Start screen monitoring") }
+                    Text(
+                        "Android may stop background services under battery restrictions. This does not automatically change Wi-Fi, mobile data, GPS, camera or microphone settings.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        }
         item {
             Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
