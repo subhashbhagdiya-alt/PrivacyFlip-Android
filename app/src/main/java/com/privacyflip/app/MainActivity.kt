@@ -1280,14 +1280,26 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
                     "Lock screen now (Device Admin)",
                     "Log only (no system change)"
                 ).forEach { option ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = action == option, onClick = {
-                            action = option
-                            trigger = if (option.startsWith("Auto:") || option == "Toggle Do Not Disturb") "Phone locks / screen turns OFF"
-                                else if (trigger == "Phone locks / screen turns OFF") "Manual"
-                                else trigger
-                        })
-                        Text(option)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(option, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        Switch(
+                            checked = action == option,
+                            onCheckedChange = { selected ->
+                                if (selected) {
+                                    action = option
+                                    trigger = if (option.startsWith("Auto:") || option == "Toggle Do Not Disturb")
+                                        "Phone locks / screen turns OFF"
+                                    else if (trigger == "Phone locks / screen turns OFF") "Manual"
+                                    else trigger
+                                } else if (action == option) {
+                                    action = "Log only (no system change)"
+                                }
+                            }
+                        )
                     }
                 }
                 if (action.startsWith("Auto:")) {
