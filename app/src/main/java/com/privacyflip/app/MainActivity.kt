@@ -124,14 +124,14 @@ private fun PrivacyFlipApp(prefs: android.content.SharedPreferences) {
                 Screen.HOME -> HomeScreen(Modifier.padding(padding), rules, paused,
                     onPause = { paused = it; saveAll(); log(if (it) "Master Pause enabled" else "Master Pause disabled") },
                     onOpenRules = { screen = Screen.AUTOMATIONS },
-                    onRun = { rule -> runRule(rule, rules, paused, ::saveAll, ::log) })
+                    onRun = { rule -> runRule(context, rule, rules, paused, ::saveAll, ::log) })
                 Screen.AUTOMATIONS -> RulesScreen(Modifier.padding(padding), rules, { showAdd = true },
                     { rule, enabled ->
                         val i = rules.indexOfFirst { it.id == rule.id }
                         if (i >= 0) rules[i] = rules[i].copy(enabled = enabled)
                         saveAll(); log("${rule.name}: ${if (enabled) "enabled" else "disabled"}")
                     },
-                    { rule -> runRule(rule, rules, paused, ::saveAll, ::log) },
+                    { rule -> runRule(context, rule, rules, paused, ::saveAll, ::log) },
                     { rule -> ruleToDelete = rule })
                 Screen.LOGS -> LogsScreen(Modifier.padding(padding), logs, { logs = ""; saveAll() })
                 Screen.SETTINGS -> SettingsScreen(Modifier.padding(padding), dark, developer, backupJson, monitorStatusTick,
@@ -216,13 +216,44 @@ private fun PrivacyFlipApp(prefs: android.content.SharedPreferences) {
     }
 }
 
-private fun runRule(rule: FlipRule, rules: MutableList<FlipRule>, paused: Boolean, save: () -> Unit, log: (String) -> Unit) {
+private fun runRule(context: Context, rule: FlipRule, rules: MutableList<FlipRule>, paused: Boolean, save: () -> Unit, log: (String) -> Unit) {
     if (paused) { log("Skipped '${rule.name}': Master Pause is enabled"); return }
     if (!rule.enabled) { log("Skipped '${rule.name}': rule is disabled"); return }
-    val i = rules.indexOfFirst { it.id == rule.id }
-    if (i >= 0) rules[i] = rules[i].copy(runs = rules[i].runs + 1)
-    save()
-    log("Run requested: ${rule.name}. Demo action logged; Android system privacy changes are not active yet.")
+    val action = rule.action.trim().lowercase()
+    val intent = when {
+        action == "open wi-fi settings" || action == "wifi settings" ->
+            Intent(Settings.ACTION_WIFI_SETTINGS)
+        action == "open location/gps settings" || action == "location settings" ->
+            Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+        action == "open bluetooth settings" || action == "bluetooth settings" ->
+            Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
+        action == "open internet panel" || action == "open internet connectivity panel" ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY)
+            else Intent(Settings.ACTION_WIRELESS_SETTINGS)
+        action == "open app permissions" || action == "app permissions" ->
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply { data = Uri.parse("package:${context.packageName}") }
+        action == "open privacy settings" || action == "privacy settings" ->
+            Intent(Settings.ACTION_PRIVACY_SETTINGS)
+        action == "open notification settings" || action == "notification settings" ->
+            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        else -> null
+    }
+    if (intent == null) {
+        log("'${rule.name}': No system action selected. Choose a real action from the action list.")
+        Toast.makeText(context, "Choose a real action in this rule's Action field.", Toast.LENGTH_LONG).show()
+        return
+    }
+    runCatching { context.startActivity(intent) }
+        .onSuccess {
+            val i = rules.indexOfFirst { it.id == rule.id }
+            if (i >= 0) rules[i] = rules[i].copy(runs = rules[i].runs + 1)
+            save()
+            log("Action opened: ${rule.name} → ${rule.action}. Android settings opened; confirm any change there.")
+        }
+        .onFailure {
+            log("Action failed: ${rule.name} → ${rule.action}. ${it.message ?: "Android could not open this settings page"}.")
+            Toast.makeText(context, "Could not open settings: ${it.message ?: "unsupported on this device"}", Toast.LENGTH_LONG).show()
+        }
 }
 
 @Composable
@@ -745,7 +776,7 @@ private fun EmptyState(title: String, subtitle: String) {
 private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, String) -> Unit) {
     var name by remember { mutableStateOf("") }
     var trigger by remember { mutableStateOf("Manual") }
-    var action by remember { mutableStateOf("Privacy routine (demo)") }
+    var action by remember { mutableStateOf("Open Privacy settings") }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Create rule") },
@@ -759,7 +790,22 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
                         Text(option)
                     }
                 }
-                OutlinedTextField(value = action, onValueChange = { action = it.take(80) }, label = { Text("Action description") }, singleLine = true)
+                Text("Action", style = MaterialTheme.typography.labelLarge)
+                listOf(
+                    "Open Wi-Fi settings",
+                    "Open Location/GPS settings",
+                    "Open Bluetooth settings",
+                    "Open Internet panel",
+                    "Open app permissions",
+                    "Open Privacy settings",
+                    "Open notification settings",
+                    "Log only (no system change)"
+                ).forEach { option ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = action == option, onClick = { action = option })
+                        Text(option)
+                    }
+                }
             }
         },
         confirmButton = { Button(enabled = name.isNotBlank(), onClick = { onCreate(name.trim(), trigger, action.trim().ifBlank { "Privacy routine (demo)" }) }) { Text("Create") } },
