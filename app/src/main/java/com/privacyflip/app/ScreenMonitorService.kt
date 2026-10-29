@@ -67,7 +67,9 @@ class ScreenMonitorService : Service() {
                     val matchedRules = mutableListOf<Pair<String, String>>()
                     for (i in 0 until array.length()) {
                         val item = array.getJSONObject(i)
-                        if (item.optBoolean("enabled", true) && item.optString("trigger") == trigger) {
+                        val savedTrigger = item.optString("trigger")
+                        val triggerMatches = savedTrigger == trigger || (trigger == "Screen turns OFF" && savedTrigger == "Phone locks / screen turns OFF")
+                        if (item.optBoolean("enabled", true) && triggerMatches) {
                             item.put("runs", (item.optInt("runs") + 1).coerceAtMost(1_000_000))
                             val name = item.optString("name", "Privacy rule")
                             val action = item.optString("action", "Log only (no system change)")
