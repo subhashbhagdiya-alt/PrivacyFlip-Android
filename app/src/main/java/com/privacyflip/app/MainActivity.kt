@@ -551,7 +551,6 @@ private fun LogsScreen(modifier: Modifier, logs: String, onClear: () -> Unit) {
 }
 
 @Composable
-@Composable
 private fun DeviceAdminCard() {
     val context = LocalContext.current
     val policyManager = remember(context) { context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager }
@@ -613,6 +612,7 @@ private fun DeviceAdminCard() {
     }
 }
 
+@Composable
 private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean, backupJson: String, monitorStatusTick: Int,
     onDark: (Boolean) -> Unit, onDeveloper: (Boolean) -> Unit, onRestore: (String) -> Unit) {
     val context = LocalContext.current
