@@ -889,7 +889,7 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
                 Text("Trigger", style = MaterialTheme.typography.labelLarge)
                 listOf("Manual", "Screen turns ON", "Phone locks / screen turns OFF", "Phone unlocked", "Phone starts", MobileDataShizuku.TRIGGER_NAME).forEach { option ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = trigger == option, onClick = { trigger = option; if (option == MobileDataShizuku.TRIGGER_NAME) action = MobileDataShizuku.ACTION_NAME })
+                        RadioButton(selected = trigger == option, onClick = { trigger = option; if (option == MobileDataShizuku.TRIGGER_NAME) action = MobileDataShizuku.ACTION_NAME else if (action == MobileDataShizuku.ACTION_NAME) action = "Open Privacy settings" })
                         Text(option)
                     }
                 }
