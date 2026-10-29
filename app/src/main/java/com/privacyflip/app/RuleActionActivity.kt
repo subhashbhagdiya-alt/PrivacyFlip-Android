@@ -49,14 +49,15 @@ class RuleActionActivity : Activity() {
             "open wi-fi settings", "wifi settings" -> Intent(Settings.ACTION_WIFI_SETTINGS)
             "open location/gps settings", "location settings" -> Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
             "open bluetooth settings", "bluetooth settings" -> Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
-            "open internet panel", "open internet connectivity panel" ->
+            "open mobile data settings", "open internet panel", "open internet connectivity panel" ->
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY)
                 else Intent(Settings.ACTION_WIRELESS_SETTINGS)
             "open app permissions", "app permissions" ->
                 Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                     data = Uri.parse("package:$packageName")
                 }
-            "open privacy settings", "privacy settings" -> Intent(Settings.ACTION_PRIVACY_SETTINGS)
+            "open airplane mode settings" -> Intent(Settings.ACTION_AIRPLANE_MODE_SETTINGS)
+            "open camera privacy controls", "open microphone privacy controls", "open privacy settings", "privacy settings" -> Intent(Settings.ACTION_PRIVACY_SETTINGS)
             "open notification settings", "notification settings" ->
                 Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                     .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
