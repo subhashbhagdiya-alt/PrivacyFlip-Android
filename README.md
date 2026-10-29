@@ -19,6 +19,7 @@ Privacy Flip is a native Kotlin + Jetpack Compose Android app. Rules, logs, and 
 - Normal app features are available without Shizuku; advanced direct lock/unlock system automation still uses optional Shizuku where Android restricts normal apps.
 - Shizuku status and permission setup in Settings. The user must install and start Shizuku separately and grant Privacy Flip permission.
 - Regular settings shortcuts remain available for actions that Android does not allow this app to automate directly.
+- Additional Android shortcuts: Display, Sound, Battery, VPN, Accessibility, Security, Storage, NFC, Cast, and Usage Access settings.
 
 ## App details and permission model
 
