@@ -33,7 +33,7 @@ class ScreenMonitorService : Service() {
             Notification.Builder(this)
         }.setSmallIcon(R.drawable.ic_privacy_flip)
             .setContentTitle("Privacy Flip is monitoring")
-            .setContentText("Tap to open Privacy Flip. Rule actions remain demo-only.")
+            .setContentText("Screen triggers are active. Matching rules post action notifications.")
             .setContentIntent(PendingIntent.getActivity(
                 this,
                 2402,
