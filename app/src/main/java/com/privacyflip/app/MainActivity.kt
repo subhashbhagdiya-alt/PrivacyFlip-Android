@@ -69,6 +69,7 @@ private fun PrivacyFlipApp(prefs: android.content.SharedPreferences) {
     var paused by remember { mutableStateOf(prefs.getBoolean("paused", false)) }
     var screen by remember { mutableStateOf(Screen.HOME) }
     var showAdd by remember { mutableStateOf(false) }
+    var showSetupWizard by remember { mutableStateOf(!prefs.getBoolean("setup_wizard_done", false)) }
     var ruleToDelete by remember { mutableStateOf<FlipRule?>(null) }
     var logs by remember { mutableStateOf(prefs.getString("logs", "Welcome to Privacy Flip.\n") ?: "") }
     var monitorStatusTick by remember { mutableIntStateOf(0) }
@@ -184,6 +185,19 @@ private fun PrivacyFlipApp(prefs: android.content.SharedPreferences) {
                         }
                     })
             }
+        }
+        if (showSetupWizard) {
+            SetupWizardDialog(
+                onOpenSettings = {
+                    showSetupWizard = false
+                    prefs.edit().putBoolean("setup_wizard_done", true).apply()
+                    screen = Screen.SETTINGS
+                },
+                onFinish = {
+                    showSetupWizard = false
+                    prefs.edit().putBoolean("setup_wizard_done", true).apply()
+                }
+            )
         }
         if (showAdd) AddRuleDialog({ showAdd = false }) { name, trigger, action ->
             when {
@@ -567,6 +581,75 @@ private fun LogsScreen(modifier: Modifier, logs: String, onClear: () -> Unit) {
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SetupWizardDialog(onOpenSettings: () -> Unit, onFinish: () -> Unit) {
+    var step by remember { mutableIntStateOf(0) }
+    AlertDialog(
+        onDismissRequest = onFinish,
+        icon = {
+            Icon(
+                painter = painterResource(R.drawable.ic_privacy_flip_foreground),
+                contentDescription = "Privacy Flip",
+                modifier = Modifier.size(54.dp),
+                tint = Color.Unspecified
+            )
+        },
+        title = { Text(if (step == 0) "Welcome to Privacy Flip" else "Quick setup · ${step}/2") },
+        text = {
+            Column(
+                Modifier.fillMaxWidth().heightIn(max = 390.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                when (step) {
+                    0 -> {
+                        Text("Lock par privacy rules, unlock par normal mode. Start with features that work without Shizuku.")
+                        SetupWizardItem("1", "Create your rules", "Choose what Privacy Flip should do when your phone locks or unlocks.")
+                        SetupWizardItem("2", "Enable screen monitoring", "Allow the ongoing notification so Android can keep the screen-event monitor running.")
+                        SetupWizardItem("3", "Optional advanced access", "Device Admin is only for the Lock screen now action. Shizuku is optional and only needed for restricted advanced automation.")
+                    }
+                    1 -> {
+                        Text("Recommended setup")
+                        SetupWizardItem("✓", "Start without Shizuku", "Rules, activity history, backups, settings shortcuts and supported Device Admin screen locking work without Shizuku.")
+                        SetupWizardItem("!", "Know the limits", "A normal app cannot directly toggle Mobile Data on every Android device. Use the optional advanced setup only if you need supported restricted actions.")
+                        SetupWizardItem("→", "Keep control", "You choose each permission. Privacy Flip does not silently grant itself access.")
+                    }
+                    else -> {
+                        Text("You are ready to explore Privacy Flip.")
+                        SetupWizardItem("✓", "Next step", "Open Settings to start screen monitoring and review optional permissions whenever you are ready.")
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (step < 2) {
+                Button(onClick = { step++ }) { Text(if (step == 1) "Next" else "Continue") }
+            } else {
+                Button(onClick = onOpenSettings) { Text("Open Settings") }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = if (step == 0) onFinish else ({ step-- })) {
+                Text(if (step == 0) "Skip for now" else "Back")
+            }
+        }
+    )
+}
+
+@Composable
+private fun SetupWizardItem(number: String, title: String, description: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(30.dp)) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(number, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold)
+            }
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, fontWeight = FontWeight.SemiBold)
+            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
