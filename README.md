@@ -1,32 +1,39 @@
 # Privacy Flip — Native Android App
 
-Privacy Flip is an offline-first native Android prototype built with Kotlin and Jetpack Compose.
+Privacy Flip is an offline-first native Android app prototype built with Kotlin and Jetpack Compose.
 
-## Current prototype (v0.2.0)
+## Current features (v0.2.0)
+
 - Android 8.0+ support (API 26+)
 - Home dashboard with rule counts, enabled/disabled rule health summary, and Master Pause
-- Local automation-rule list with add, search by name/trigger/action, enable/disable, run-now logging, delete confirmation, and a visible DEMO ONLY label on each rule (planned triggers are explicitly marked inactive)
-- Activity log stored on device, scrollable, with one-tap copy and confirmation before clearing history
-- Light/dark theme preference
-- Android settings shortcuts for system Privacy settings, this app's info/permissions, and notification settings (user makes any changes in Android Settings)
-- Advanced Developer Mode diagnostics
-- JSON backup export and import/restore using Android's document picker, with a confirmation prompt before replacing current data
-- Optional user-started foreground monitoring service detects Screen ON/OFF and Phone unlocked events while the service is running; it shows an ongoing notification and records demo events only
-- Phone-start trigger uses Android BOOT_COMPLETED after the app has been launched at least once; matching enabled rules update local counts and logs (demo only)
-- No network permission or account required
-- Settings shortcut opens Android's own app-details screen so users can review permissions manually; system permissions are not changed silently
-- GitHub Actions workflow builds a debug APK and uploads it as an artifact
+- Local automation rules: create, search, enable/disable, run manually, and delete
+- Supported triggers: Manual, Screen turns ON, Screen turns OFF, Phone unlocked, and Phone starts
+- Supported actions: open Wi-Fi settings, Location/GPS settings, Bluetooth settings, Internet connectivity panel, this app's permissions, Android Privacy settings, and notification settings
+- Do Not Disturb toggle using Android's Notification Policy Access special permission; if access is missing, the app opens the system access screen and the user must grant it before retrying
+- Optional user-started foreground screen monitor with persistent notification; matching screen/unlock rules create actionable notifications
+- Phone-start rules are evaluated after Android delivers BOOT_COMPLETED; supported actions can be started from their notification
+- Local activity log with copy and clear confirmation
+- Light/dark theme preference and Advanced Developer Mode diagnostics
+- JSON backup export and import/restore using Android's document picker, with validation and confirmation
+- Offline-first: no account and no network permission required
+- GitHub Actions builds a debug APK artifact
 
-## Important limitations
-This is an early UI and local-rule prototype. **Run now records a demo action; it does not automatically change Android system privacy settings.** The Settings screen provides shortcuts to Android's Privacy settings, this app's info/permissions, and notification settings; users must make changes themselves in Android Settings. Screen ON/OFF and Phone unlocked events can be monitored by manually starting the foreground monitoring service from Settings; Android displays an ongoing notification while it runs, and battery policies may stop it. These triggers only update local counts and logs; they do not change system settings. Phone-start detection records a demo event only and does not change system settings. Scheduled triggers, app-open/location triggers, and real system-level privacy controls are not implemented yet. Backup import/restore is available for the local rules and preferences. Android restricts many system settings to privileged apps or user-granted special access, so each real action must be implemented with explicit permission and compatibility checks.
+## Android permissions and limits
+
+Privacy Flip does not silently grant itself privileges. The user must grant Do Not Disturb access in Android Settings before that action can change the interruption filter. Android may show its own confirmation or settings UI for other actions. Most settings shortcuts only open the relevant Android settings page; the user completes the change there.
+
+Screen ON/OFF and Phone unlocked triggers require the user to start the foreground monitoring service. Android 13+ notification permission is requested when needed. Android battery policies or vendor-specific background restrictions may stop the service. Phone-start rules require the app to have been launched at least once and Android to deliver BOOT_COMPLETED. Notifications are only shown if Android permits them.
+
+This app does **not** directly toggle Wi-Fi, mobile data, GPS, camera/microphone access for other apps, or other restricted system controls. Scheduled, app-open, and location triggers are not included in this build. Test the app on a physical device before relying on any automation; GitHub Actions success confirms compilation and APK packaging, not device behavior.
 
 ## Build
-The GitHub Actions workflow runs Gradle 8.9 with JDK 17 to build the debug APK. After a successful workflow run, download the PrivacyFlip-debug-apk artifact from the Actions run page.
+
+The GitHub Actions workflow uses JDK 17 and Gradle 8.9 to build the debug APK. Download the `PrivacyFlip-debug-apk` artifact from a successful Actions run.
 
 For local builds, install JDK 17 and Gradle 8.9, then run:
 
-~~~sh
+```sh
 gradle assembleDebug
-~~~
+```
 
-Package: com.privacyflip.app
+Package: `com.privacyflip.app`
