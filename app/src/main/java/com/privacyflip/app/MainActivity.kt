@@ -711,7 +711,7 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = name, onValueChange = { name = it.take(48) }, label = { Text("Rule name") }, singleLine = true)
                 Text("Trigger", style = MaterialTheme.typography.labelLarge)
-                listOf("Manual", "Screen turns ON", "Screen turns OFF", "Phone starts", "Scheduled (planned)", "App opened (planned)", "Location (planned)").forEach { option ->
+                listOf("Manual", "Screen turns ON", "Screen turns OFF", "Phone unlocked", "Phone starts", "Scheduled (planned)", "App opened (planned)", "Location (planned)").forEach { option ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(selected = trigger == option, onClick = { trigger = option })
                         Text(option)
