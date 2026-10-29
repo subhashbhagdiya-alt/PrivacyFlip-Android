@@ -587,16 +587,41 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    OutlinedButton(onClick = {
-                        runCatching {
-                            val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                data = android.net.Uri.parse("package:${context.packageName}")
+                    OutlinedButton(
+                        onClick = { openSettingsPage(context, Intent(Settings.ACTION_WIFI_SETTINGS), "Wi-Fi settings") },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Open Wi-Fi settings") }
+                    OutlinedButton(
+                        onClick = { openSettingsPage(context, Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS), "Location settings") },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Open Location / GPS settings") }
+                    OutlinedButton(
+                        onClick = { openSettingsPage(context, Intent(Settings.ACTION_BLUETOOTH_SETTINGS), "Bluetooth settings") },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Open Bluetooth settings") }
+                    OutlinedButton(
+                        onClick = {
+                            val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY)
+                            } else {
+                                Intent(Settings.ACTION_WIRELESS_SETTINGS)
                             }
-                            context.startActivity(intent)
-                        }.onFailure {
-                            Toast.makeText(context, "Could not open Android app settings", Toast.LENGTH_SHORT).show()
-                        }
-                    }) {
+                            openSettingsPage(context, intent, "Internet connectivity panel")
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Open Internet connectivity panel") }
+                    OutlinedButton(
+                        onClick = {
+                            runCatching {
+                                context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                    data = Uri.parse("package:${context.packageName}")
+                                })
+                            }.onFailure {
+                                Toast.makeText(context, "Could not open Android app settings", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Icon(Icons.Default.Settings, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
                         Text("Open Android app settings")
