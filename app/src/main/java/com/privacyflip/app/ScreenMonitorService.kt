@@ -90,20 +90,18 @@ class ScreenMonitorService : Service() {
                             item.put("runs", (item.optInt("runs") + 1).coerceAtMost(1_000_000))
 
                             if (pairedOption != null) {
-                                // Radio-style controls go OFF on lock and ON on unlock.
-                                // Camera/microphone privacy toggles instead turn privacy ON while locked.
-                                val privacySensor = pairedOption == "camera_privacy" || pairedOption == "microphone_privacy"
-                                val enabled = if (trigger == "Screen turns OFF") privacySensor else !privacySensor
                                 if (pairedOption == "mobile_data") {
-                                    // Use the dedicated mobile-data service and its explicit exit-code result.
-                                    // Other controls use isolated per-option shell services.
-                                    MobileDataShizuku.setMobileDataEnabled(this@ScreenMonitorService, enabled) { result ->
-                                        recordMobileDataResult(name, enabled, result)
-                                        if (!result.startsWith("OK|")) {
-                                            postAutomationFailureNotification(name, result.substringAfter("|", result))
-                                        }
+                                    // Restore only a state that this app verified and changed itself.
+                                    val logAction: (String) -> Unit = { message -> appendLog(prefs, "$trigger · $name: $message") }
+                                    if (trigger == "Screen turns OFF") {
+                                        MobileDataRestoreController.onLock(this@ScreenMonitorService, name, logAction)
+                                    } else {
+                                        MobileDataRestoreController.onUnlock(this@ScreenMonitorService, logAction)
                                     }
                                 } else {
+                                    // Other paired controls retain their existing direct-action path for now.
+                                    val privacySensor = pairedOption == "camera_privacy" || pairedOption == "microphone_privacy"
+                                    val enabled = if (trigger == "Screen turns OFF") privacySensor else !privacySensor
                                     ShizukuAutomation.apply(this@ScreenMonitorService, pairedOption, enabled) { result ->
                                         if (result.startsWith("OK:")) {
                                             appendLog(prefs, "$trigger · $name: $result")
@@ -113,7 +111,7 @@ class ScreenMonitorService : Service() {
                                         }
                                     }
                                 }
-                                messages.add("$trigger · $name: automatic system command requested.")
+                                messages.add("$trigger · $name: state-aware automation requested.")
                             } else if (action.equals("Toggle Do Not Disturb", ignoreCase = true) && lockUnlockTrigger) {
                                 val targetAction = if (trigger == "Screen turns OFF") "Enable Do Not Disturb" else "Disable Do Not Disturb"
                                 if (!applyDoNotDisturb(targetAction)) {
