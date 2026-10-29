@@ -209,8 +209,20 @@ private fun PrivacyFlipApp(prefs: android.content.SharedPreferences) {
             }
         }
         if (showAdd) AddRuleDialog({ showAdd = false }) { name, trigger, action ->
-            rules.add(FlipRule(System.currentTimeMillis(), name, trigger, action))
-            saveAll(); log("Created rule: $name"); showAdd = false
+            when {
+                rules.size >= 500 -> Toast.makeText(context, "Maximum 500 rules allowed", Toast.LENGTH_LONG).show()
+                rules.any { it.name.equals(name.trim(), ignoreCase = true) } ->
+                    Toast.makeText(context, "A rule with this name already exists", Toast.LENGTH_LONG).show()
+                else -> {
+                    val usedIds = rules.map { it.id }.toSet()
+                    var newId = System.currentTimeMillis()
+                    while (newId <= 0L || newId in usedIds) newId++
+                    rules.add(FlipRule(newId, name.trim(), trigger, action.trim().ifBlank { "Privacy routine (demo)" }))
+                    saveAll()
+                    log("Created rule: ${name.trim()}")
+                    showAdd = false
+                }
+            }
         }
         ruleToDelete?.let { rule ->
             AlertDialog(
