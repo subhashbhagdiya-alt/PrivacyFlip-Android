@@ -896,6 +896,12 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
                 Text("Action", style = MaterialTheme.typography.labelLarge)
                 listOf(
                     MobileDataShizuku.ACTION_NAME,
+                    "Auto: Mobile data OFF on lock / ON on unlock",
+                    "Auto: Wi-Fi OFF on lock / ON on unlock",
+                    "Auto: Bluetooth OFF on lock / ON on unlock",
+                    "Auto: Location OFF on lock / ON on unlock",
+                    "Auto: Camera privacy ON on lock / OFF on unlock",
+                    "Auto: Microphone privacy ON on lock / OFF on unlock",
                     "Open Wi-Fi settings",
                     "Open Mobile data settings",
                     "Open Airplane mode settings",
