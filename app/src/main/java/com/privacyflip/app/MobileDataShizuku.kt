@@ -10,8 +10,8 @@ import java.util.concurrent.Executors
 
 /** User-consented Shizuku bridge. No network connection is used. */
 object MobileDataShizuku {
-    const val ACTION_NAME = "Mobile Data via Shizuku (OFF on Lock / ON on Unlock)"
-    const val TRIGGER_NAME = "Lock / Unlock (Mobile Data)"
+    const val ACTION_NAME = "Auto: Mobile data OFF on lock / ON on unlock"
+    const val TRIGGER_NAME = "Phone locks / screen turns OFF"
 
     private data class Request(val enabled: Boolean, val callback: (String) -> Unit)
     private val lock = Any()
