@@ -827,17 +827,18 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
         onDismissRequest = onDismiss,
         title = { Text("Create rule") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = name, onValueChange = { name = it.take(48) }, label = { Text("Rule name") }, singleLine = true)
                 Text("Trigger", style = MaterialTheme.typography.labelLarge)
-                listOf("Manual", "Screen turns ON", "Phone locks / screen turns OFF", "Phone unlocked", "Phone starts").forEach { option ->
+                listOf("Manual", "Screen turns ON", "Phone locks / screen turns OFF", "Phone unlocked", "Phone starts", MobileDataShizuku.TRIGGER_NAME).forEach { option ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = trigger == option, onClick = { trigger = option })
+                        RadioButton(selected = trigger == option, onClick = { trigger = option; if (option == MobileDataShizuku.TRIGGER_NAME) action = MobileDataShizuku.ACTION_NAME })
                         Text(option)
                     }
                 }
                 Text("Action", style = MaterialTheme.typography.labelLarge)
                 listOf(
+                    MobileDataShizuku.ACTION_NAME,
                     "Open Wi-Fi settings",
                     "Open Mobile data settings",
                     "Open Airplane mode settings",
@@ -853,9 +854,16 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
                     "Log only (no system change)"
                 ).forEach { option ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = action == option, onClick = { action = option })
+                        RadioButton(selected = action == option, onClick = { action = option; if (option == MobileDataShizuku.ACTION_NAME) trigger = MobileDataShizuku.TRIGGER_NAME })
                         Text(option)
                     }
+                }
+                if (action == MobileDataShizuku.ACTION_NAME) {
+                    Text(
+                        "Needs Shizuku running and permission granted. Screen OFF requests Mobile Data OFF; phone-unlocked requests ON. Keep screen monitoring enabled. No internet permission is used.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
         },
