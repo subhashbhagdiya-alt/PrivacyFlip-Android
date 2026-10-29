@@ -68,12 +68,21 @@ class ScreenMonitorService : Service() {
                     for (i in 0 until array.length()) {
                         val item = array.getJSONObject(i)
                         val savedTrigger = item.optString("trigger")
-                        val triggerMatches = savedTrigger == trigger || (trigger == "Screen turns OFF" && savedTrigger == "Phone locks / screen turns OFF")
+                        val action = item.optString("action", "Log only (no system change)")
+                        val isMobileDataRule = savedTrigger == MobileDataShizuku.TRIGGER_NAME && action == MobileDataShizuku.ACTION_NAME
+                        val triggerMatches = savedTrigger == trigger ||
+                            (trigger == "Screen turns OFF" && savedTrigger == "Phone locks / screen turns OFF") ||
+                            (isMobileDataRule && (trigger == "Screen turns OFF" || trigger == "Phone unlocked"))
                         if (item.optBoolean("enabled", true) && triggerMatches) {
                             item.put("runs", (item.optInt("runs") + 1).coerceAtMost(1_000_000))
                             val name = item.optString("name", "Privacy rule")
-                            val action = item.optString("action", "Log only (no system change)")
-                            if (action.equals("Toggle Do Not Disturb", ignoreCase = true) &&
+                            if (isMobileDataRule) {
+                                val enableData = trigger == "Phone unlocked"
+                                messages.add(trigger + " · " + name + ": requesting Mobile Data " + (if (enableData) "ON" else "OFF") + " via Shizuku.")
+                                MobileDataShizuku.setMobileDataEnabled(this@ScreenMonitorService, enableData) { result ->
+                                    recordMobileDataResult(name, enableData, result)
+                                }
+                            } else if (action.equals("Toggle Do Not Disturb", ignoreCase = true) &&
                                 (trigger == "Screen turns OFF" || trigger == "Phone unlocked")) {
                                 val targetAction = if (trigger == "Screen turns OFF") "Enable Do Not Disturb" else "Disable Do Not Disturb"
                                 if (!applyDoNotDisturb(targetAction)) {
