@@ -477,6 +477,24 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
     val appPrefs = remember(context) { context.getSharedPreferences("privacy_flip", Context.MODE_PRIVATE) }
     var monitoring by remember { mutableStateOf(appPrefs.getBoolean("screen_monitor_enabled", false)) }
     var pendingImport by remember { mutableStateOf<String?>(null) }
+    val startMonitoring = {
+        runCatching {
+            val intent = Intent(context, ScreenMonitorService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
+            else context.startService(intent)
+            monitoring = true
+            appPrefs.edit().putBoolean("screen_monitor_enabled", true).apply()
+            Toast.makeText(context, "Screen monitoring started", Toast.LENGTH_SHORT).show()
+        }.onFailure {
+            Toast.makeText(context, "Could not start monitoring: ${it.message ?: "unknown error"}", Toast.LENGTH_LONG).show()
+        }
+    }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) startMonitoring()
+        else Toast.makeText(context, "Notification permission is needed to show monitoring status", Toast.LENGTH_LONG).show()
+    }
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -558,12 +576,13 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
                                     appPrefs.edit().putBoolean("screen_monitor_enabled", false).apply()
                                     Toast.makeText(context, "Screen monitoring stopped", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    val intent = Intent(context, ScreenMonitorService::class.java)
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
-                                    else context.startService(intent)
-                                    monitoring = true
-                                    appPrefs.edit().putBoolean("screen_monitor_enabled", true).apply()
-                                    Toast.makeText(context, "Screen monitoring started", Toast.LENGTH_SHORT).show()
+                                    if (Build.VERSION.SDK_INT >= 33 &&
+                                        context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                                    ) {
+                                        notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                                    } else {
+                                        startMonitoring()
+                                    }
                                 }
                             }.onFailure {
                                 Toast.makeText(context, "Could not change monitoring: ${it.message ?: "unknown error"}", Toast.LENGTH_LONG).show()
