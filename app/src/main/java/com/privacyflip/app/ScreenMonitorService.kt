@@ -3,6 +3,7 @@ package com.privacyflip.app
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -32,7 +33,16 @@ class ScreenMonitorService : Service() {
             Notification.Builder(this)
         }.setSmallIcon(R.drawable.ic_privacy_flip)
             .setContentTitle("Privacy Flip is monitoring")
-            .setContentText("Screen events are monitored; rule actions remain demo-only.")
+            .setContentText("Tap to open Privacy Flip. Rule actions remain demo-only.")
+            .setContentIntent(PendingIntent.getActivity(
+                this,
+                2402,
+                Intent(this, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                    (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+            ))
             .setOngoing(true)
             .build()
         startForeground(2401, notification)
