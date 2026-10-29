@@ -104,7 +104,7 @@ object MobileDataShizuku {
             try {
                 val serviceArgs = Shizuku.UserServiceArgs(
                     ComponentName(context.applicationContext, MobileDataUserService::class.java)
-                ).tag("privacy_flip_mobile_data").version(1).daemon(true)
+                ).tag("privacy_flip_mobile_data").version(2).daemon(true)
                 args = serviceArgs
                 Shizuku.bindUserService(serviceArgs, connection)
             } catch (t: Throwable) {
@@ -144,7 +144,7 @@ object MobileDataShizuku {
             try {
                 val serviceArgs = Shizuku.UserServiceArgs(
                     ComponentName(context.applicationContext, MobileDataUserService::class.java)
-                ).tag("privacy_flip_mobile_data").version(1).daemon(true)
+                ).tag("privacy_flip_mobile_data").version(2).daemon(true)
                 args = serviceArgs
                 Shizuku.bindUserService(serviceArgs, connection)
             } catch (t: Throwable) {
