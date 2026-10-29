@@ -82,6 +82,11 @@ object MobileDataShizuku {
         getMobileDataState(context.applicationContext) { result -> callback?.invoke(result) }
     }
 
+    fun resetConnection() {
+        synchronized(lock) { remote = null; binding = false }
+        failPending("Shizuku server stopped; waiting for it to become available")
+    }
+
     fun setMobileDataEnabled(context: Context, enabled: Boolean, callback: (String) -> Unit) {
         if (!Shizuku.pingBinder()) {
             callback("ERROR|Shizuku is not running. Start Shizuku after reboot and try again.")
