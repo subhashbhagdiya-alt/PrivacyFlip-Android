@@ -813,7 +813,7 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = name, onValueChange = { name = it.take(48) }, label = { Text("Rule name") }, singleLine = true)
                 Text("Trigger", style = MaterialTheme.typography.labelLarge)
-                listOf("Manual", "Screen turns ON", "Screen turns OFF", "Phone unlocked", "Phone starts", "Scheduled (planned)", "App opened (planned)", "Location (planned)").forEach { option ->
+                listOf("Manual", "Screen turns ON", "Screen turns OFF", "Phone unlocked", "Phone starts").forEach { option ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(selected = trigger == option, onClick = { trigger = option })
                         Text(option)
@@ -845,8 +845,8 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
 
 private fun loadRules(prefs: android.content.SharedPreferences): List<FlipRule> {
     val raw = prefs.getString("rules", null) ?: return listOf(
-        FlipRule(1L, "Focus mode", "Manual", "Privacy routine (demo)"),
-        FlipRule(2L, "Quiet hours", "Scheduled (planned)", "Privacy routine (demo)", enabled = false)
+        FlipRule(1L, "Focus mode", "Manual", "Toggle Do Not Disturb"),
+        FlipRule(2L, "Unlock privacy reminder", "Phone unlocked", "Open app permissions", enabled = false)
     )
     return try {
         val array = JSONArray(raw)
