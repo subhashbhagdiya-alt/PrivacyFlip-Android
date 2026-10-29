@@ -434,16 +434,35 @@ private fun LogsScreen(modifier: Modifier, logs: String, onClear: () -> Unit) {
             dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } }
         )
     }
+    val context = LocalContext.current
     Column(modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Activity log", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text("Stored locally on this device", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            TextButton(onClick = {
+                runCatching {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Privacy Flip activity log", logs))
+                    Toast.makeText(context, "Activity log copied", Toast.LENGTH_SHORT).show()
+                }.onFailure {
+                    Toast.makeText(context, "Could not copy activity log", Toast.LENGTH_SHORT).show()
+                }
+            }, enabled = logs.isNotBlank()) { Text("Copy") }
             TextButton(onClick = { confirmClear = true }, enabled = logs.isNotBlank()) { Text("Clear") }
         }
         Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxSize()) {
-            Text(logs.ifBlank { "No activity yet." }, Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium)
+            if (logs.isBlank()) {
+                Text("No activity yet.", Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium)
+            } else {
+                LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(logs.lines().filter { it.isNotBlank() }) { line ->
+                        Text(line, style = MaterialTheme.typography.bodyMedium)
+                        HorizontalDivider()
+                    }
+                }
+            }
         }
     }
 }
