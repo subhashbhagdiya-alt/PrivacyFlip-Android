@@ -230,6 +230,26 @@ private fun runRule(context: Context, rule: FlipRule, rules: MutableList<FlipRul
         log("Automatic lock/unlock action is event-based. Start Shizuku, grant permission in Settings, and keep screen monitoring enabled.")
         return
     }
+    if (action == "lock screen now" || action == "lock screen now (device admin)") {
+        val policyManager = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        val adminComponent = ComponentName(context, PrivacyFlipAdminReceiver::class.java)
+        if (!policyManager.isAdminActive(adminComponent)) {
+            runCatching {
+                context.startActivity(Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+                    putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent)
+                    putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                        "Allow Privacy Flip to lock the screen only when you run this action.")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                })
+            }.onSuccess { log("Enable Device Admin, then run Lock screen now again.") }
+                .onFailure { log("Could not open Device Admin setup: ${it.message ?: "unknown error"}") }
+            return
+        }
+        runCatching { policyManager.lockNow() }
+            .onSuccess { log("Device Admin: screen lock requested.") }
+            .onFailure { log("Lock screen failed: ${it.message ?: "permission unavailable"}") }
+        return
+    }
     if (action == "log only (no system change)") {
         log("Log-only action selected; no Android setting was opened.")
         return
@@ -1068,6 +1088,7 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
                     "Open Privacy settings",
                     "Open notification settings",
                     "Toggle Do Not Disturb",
+                    "Lock screen now (Device Admin)",
                     "Log only (no system change)"
                 ).forEach { option ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
