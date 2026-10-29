@@ -87,38 +87,8 @@ private fun PrivacyFlipApp(prefs: android.content.SharedPreferences) {
     }
 
     val context = LocalContext.current
-    DisposableEffect(context, paused) {
-        // Screen broadcasts are monitored only while this app's UI is active.
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                val trigger = when (intent?.action) {
-                    Intent.ACTION_SCREEN_ON -> "Screen turns ON"
-                    Intent.ACTION_SCREEN_OFF -> "Screen turns OFF"
-                    else -> return
-                }
-                if (paused) return
-                rules.indices.toList().forEach { index ->
-                    val rule = rules[index]
-                    if (rule.enabled && rule.trigger == trigger) {
-                        rules[index] = rule.copy(runs = rule.runs + 1)
-                        saveAll()
-                        log("Trigger detected: $trigger · ${rule.name}. Demo action logged; system settings unchanged.")
-                    }
-                }
-            }
-        }
-        val filter = IntentFilter().apply {
-            addAction(Intent.ACTION_SCREEN_ON)
-            addAction(Intent.ACTION_SCREEN_OFF)
-        }
-        if (Build.VERSION.SDK_INT >= 33) {
-            context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
-        } else {
-            @Suppress("DEPRECATION")
-            context.registerReceiver(receiver, filter)
-        }
-        onDispose { runCatching { context.unregisterReceiver(receiver) } }
-    }
+    // Screen events are handled by the opt-in foreground ScreenMonitorService.
+
 
     val scheme = if (dark) darkColorScheme(
         primary = Color(0xFF8FE3C1), secondary = Color(0xFFB9C7FF),
