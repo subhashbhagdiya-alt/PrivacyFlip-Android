@@ -632,7 +632,7 @@ private fun SetupWizardDialog(onOpenSettings: () -> Unit, onFinish: () -> Unit) 
             }
         },
         dismissButton = {
-            TextButton(onClick = if (step == 0) onFinish else ({ step-- })) {
+            TextButton(onClick = { if (step == 0) onFinish() else step-- }) {
                 Text(if (step == 0) "Skip for now" else "Back")
             }
         }
@@ -805,6 +805,7 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
         }
         item { SettingRow("Dark theme", "Use a darker interface", dark, onDark) }
         item { SettingRow("Advanced Developer Mode", "Show diagnostic details and advanced options", developer, onDeveloper) }
+        item { PermissionStatusCard() }
         item { AppDetailsCard() }
         item { DeviceAdminCard() }
         item { ShizukuSetupCard() }
@@ -957,6 +958,81 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
     }
 }
 
+
+@Composable
+private fun PermissionStatusCard() {
+    val context = LocalContext.current
+    val policyManager = remember(context) {
+        context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+    }
+    val adminComponent = remember(context) {
+        ComponentName(context, PrivacyFlipAdminReceiver::class.java)
+    }
+    var refreshKey by remember { mutableIntStateOf(0) }
+    val notificationAllowed = remember(refreshKey) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        } else {
+            context.getSystemService(NotificationManager::class.java)?.areNotificationsEnabled() == true
+        }
+    }
+    val adminEnabled = remember(refreshKey) { policyManager.isAdminActive(adminComponent) }
+    val monitoringEnabled = remember(refreshKey) {
+        context.getSharedPreferences("privacy_flip", Context.MODE_PRIVATE)
+            .getBoolean("screen_monitor_enabled", false)
+    }
+    val serviceRunning = remember(refreshKey) {
+        context.getSharedPreferences("privacy_flip", Context.MODE_PRIVATE)
+            .getBoolean("monitor_service_running", false)
+    }
+    val shizukuStatus = remember(refreshKey) { MobileDataShizuku.status() }
+    val shizukuGranted = remember(refreshKey) { MobileDataShizuku.hasPermission() }
+
+    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Permission & setup status", fontWeight = FontWeight.Bold)
+                    Text("Check what is ready on this phone", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                TextButton(onClick = { refreshKey++ }) { Text("Refresh") }
+            }
+            PermissionStatusRow("Notifications", if (notificationAllowed) "Allowed" else "Not allowed",
+                if (notificationAllowed) "Monitoring notification can be shown." else "Allow notifications so monitoring can show its ongoing status.", notificationAllowed)
+            PermissionStatusRow("Screen monitoring", when {
+                serviceRunning -> "Running"
+                monitoringEnabled -> "Enabled · not running"
+                else -> "Not started"
+            }, "Starts when you enable background screen monitoring.", serviceRunning)
+            PermissionStatusRow("Device Admin", if (adminEnabled) "Enabled" else "Optional · not enabled",
+                "Only required for the explicit Lock screen now action.", adminEnabled)
+            PermissionStatusRow("Shizuku", if (shizukuGranted) "Connected · permission granted" else "Optional · unavailable",
+                shizukuStatus, shizukuGranted)
+            Text("Mobile Data automation requires Shizuku on standard Android builds; Device Admin does not provide this access.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun PermissionStatusRow(title: String, status: String, description: String, ready: Boolean) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+        Icon(
+            imageVector = if (ready) Icons.Default.Shield else Icons.Default.Tune,
+            contentDescription = null,
+            tint = if (ready) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
+        )
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Text(status, style = MaterialTheme.typography.labelMedium,
+                    color = if (ready) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
 
 @Composable
 private fun AppDetailsCard() {
