@@ -691,7 +691,7 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
                         modifier = Modifier.fillMaxWidth()
                     ) { Text(if (monitoring) "Stop screen monitoring" else "Start screen monitoring") }
                     Text(
-                        "Android may stop background services under battery restrictions. This does not automatically change Wi-Fi, mobile data, GPS, camera or microphone settings.",
+                        "Android may stop background services under battery restrictions. Only the dedicated Mobile Data Lock/Unlock rule uses Shizuku; Wi-Fi, GPS, camera/microphone and other shortcuts remain subject to Android restrictions.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error
                     )
@@ -778,11 +778,11 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
                 Column(Modifier.padding(16.dp)) {
                     Text("Developer diagnostics", fontWeight = FontWeight.Bold)
                     Text("Storage: SharedPreferences · Network access: none · Minimum Android: 8.0 (API 26)", style = MaterialTheme.typography.bodySmall)
-                    Text("System privacy actions are not connected in this prototype.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    Text("Mobile Data Lock/Unlock uses the optional Shizuku shell bridge. Other system actions still depend on Android restrictions and device testing.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 }
             }
         }
-        item { Text("Privacy Flip 0.2.0 · Offline-first prototype", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        item { Text("Privacy Flip 0.3.0 · Offline-first", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
 
