@@ -36,6 +36,8 @@ class ScreenMonitorService : Service() {
             .setOngoing(true)
             .build()
         startForeground(2401, notification)
+        getSharedPreferences("privacy_flip", Context.MODE_PRIVATE).edit()
+            .putBoolean("monitor_service_running", true).apply()
 
         receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
@@ -89,6 +91,8 @@ class ScreenMonitorService : Service() {
     override fun onDestroy() {
         receiver?.let { runCatching { unregisterReceiver(it) } }
         receiver = null
+        getSharedPreferences("privacy_flip", Context.MODE_PRIVATE).edit()
+            .putBoolean("monitor_service_running", false).apply()
         super.onDestroy()
     }
 
