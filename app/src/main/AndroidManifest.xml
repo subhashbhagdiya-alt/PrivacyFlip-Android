@@ -35,4 +35,7 @@
             </intent-filter>
         </activity>
     </application>
+    <queries>
+        <package android:name="moe.shizuku.privileged.api" />
+    </queries>
 </manifest>
