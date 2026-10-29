@@ -798,8 +798,8 @@ private fun ShizukuSetupCard() {
         val permissionResult = Shizuku.OnRequestPermissionResultListener { code, result ->
             if (code == requestCode) {
                 status = if (result == android.content.pm.PackageManager.PERMISSION_GRANTED)
-                    "Shizuku permission granted. Create the Mobile Data Lock/Unlock rule and start screen monitoring."
-                else "Shizuku permission denied. Mobile Data automation will not run until permission is granted."
+                    "Shizuku permission granted. Choose an automatic lock/unlock action and start screen monitoring."
+                else "Shizuku permission denied. Automatic system controls will not run until permission is granted."
             }
         }
         Shizuku.addBinderReceivedListenerSticky(received)
@@ -814,7 +814,7 @@ private fun ShizukuSetupCard() {
     Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Shizuku system access", fontWeight = FontWeight.Bold)
-            Text("Optional local-only bridge for Mobile Data automation. On Android 11+, start Shizuku using Wireless Debugging; after reboot, Shizuku may need to be started again.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Optional local-only Shizuku bridge for automatic lock and unlock controls. On Android 11+, start Shizuku using Wireless Debugging; after reboot, Shizuku may need to be started again.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(status, style = MaterialTheme.typography.bodyMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = {
