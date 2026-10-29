@@ -252,6 +252,13 @@ private fun runRule(context: Context, rule: FlipRule, rules: MutableList<FlipRul
     val intent = when {
         action == "open wi-fi settings" || action == "wifi settings" ->
             Intent(Settings.ACTION_WIFI_SETTINGS)
+        action == "open mobile data settings" ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY)
+            else Intent(Settings.ACTION_WIRELESS_SETTINGS)
+        action == "open airplane mode settings" ->
+            Intent(Settings.ACTION_AIRPLANE_MODE_SETTINGS)
+        action == "open camera privacy controls" || action == "open microphone privacy controls" ->
+            Intent(Settings.ACTION_PRIVACY_SETTINGS)
         action == "open location/gps settings" || action == "location settings" ->
             Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
         action == "open bluetooth settings" || action == "bluetooth settings" ->
@@ -338,7 +345,7 @@ private fun HomeScreen(modifier: Modifier, rules: List<FlipRule>, paused: Boolea
                 Text(
                     if (rules.isEmpty()) "Create a rule to see your rule status summary."
                     else if (paused) "Master Pause is on. Rule status is shown, but actions are paused."
-                    else "Status summary only. Rule actions are still demo-only.",
+                    else "Rules open Android controls where supported; system changes may need confirmation.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -350,7 +357,7 @@ private fun HomeScreen(modifier: Modifier, rules: List<FlipRule>, paused: Boolea
         } }
         if (rules.isEmpty()) item { EmptyState("No rules yet", "Create a rule to organize your privacy routines.") }
         items(rules.take(3), key = { it.id }) { rule -> RuleCard(rule, {}, { onRun(rule) }, showToggle = false) }
-        item { Text("Prototype note: Run now records a demo action; it does not change Android system privacy settings.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        item { Text("Android controls are managed by the system. Some settings cannot be changed automatically by third-party apps.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
 
@@ -456,7 +463,7 @@ private fun RuleCard(rule: FlipRule, onToggle: (Boolean) -> Unit, onRun: () -> U
                 color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.55f)
             ) {
                 Text(
-                    "DEMO ONLY · This rule does not change Android settings",
+                    if (rule.action.equals("Toggle Do Not Disturb", ignoreCase = true)) "Uses Android Do Not Disturb access" else "Opens Android controls; confirm changes there",
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onErrorContainer,
@@ -625,7 +632,7 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Background screen monitoring", fontWeight = FontWeight.Bold)
                     Text(
-                        if (serviceRunning) "Service reports running. Screen triggers can be logged; actions remain demo-only."
+                        if (serviceRunning) "Service reports running. Matching screen/unlock rules can show action notifications."
                         else if (monitoring) "Monitoring was enabled, but the service is not currently reporting as running."
                         else "Enable a persistent notification and monitor screen ON/OFF triggers while this service runs.",
                         style = MaterialTheme.typography.bodySmall,
@@ -822,6 +829,10 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
                 Text("Action", style = MaterialTheme.typography.labelLarge)
                 listOf(
                     "Open Wi-Fi settings",
+                    "Open Mobile data settings",
+                    "Open Airplane mode settings",
+                    "Open Camera privacy controls",
+                    "Open Microphone privacy controls",
                     "Open Location/GPS settings",
                     "Open Bluetooth settings",
                     "Open Internet panel",
@@ -845,8 +856,8 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
 
 private fun loadRules(prefs: android.content.SharedPreferences): List<FlipRule> {
     val raw = prefs.getString("rules", null) ?: return listOf(
-        FlipRule(1L, "Focus mode", "Manual", "Toggle Do Not Disturb"),
-        FlipRule(2L, "Unlock privacy reminder", "Phone unlocked", "Open app permissions", enabled = false)
+        FlipRule(1L, "Mobile data controls", "Manual", "Open Mobile data settings"),
+        FlipRule(2L, "Camera & microphone privacy", "Manual", "Open Camera privacy controls", enabled = false)
     )
     return try {
         val array = JSONArray(raw)
