@@ -81,6 +81,11 @@ class ScreenMonitorService : Service() {
         }
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Ask Android to recreate the service if the process is reclaimed, where permitted.
+        return START_STICKY
+    }
+
     override fun onDestroy() {
         receiver?.let { runCatching { unregisterReceiver(it) } }
         receiver = null
