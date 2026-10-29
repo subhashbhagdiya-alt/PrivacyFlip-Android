@@ -926,9 +926,9 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
                         Text(option)
                     }
                 }
-                if (action == MobileDataShizuku.ACTION_NAME) {
+                if (action == MobileDataShizuku.ACTION_NAME || action.startsWith("Auto:")) {
                     Text(
-                        "Needs Shizuku running and permission granted. Screen OFF requests Mobile Data OFF; phone-unlocked requests ON. Keep screen monitoring enabled. No internet permission is used.",
+                        "Needs Shizuku running and Privacy Flip permission granted. Lock turns the selected radio/control OFF (Camera/Microphone privacy turns ON); unlock reverses it. Start screen monitoring. Commands may vary by Android version and phone.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
                     )
