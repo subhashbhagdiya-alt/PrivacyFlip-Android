@@ -571,14 +571,24 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    OutlinedButton(
-                        onClick = {
-                            serviceRunning = appPrefs.getBoolean("monitor_service_running", false)
-                            monitoring = appPrefs.getBoolean("screen_monitor_enabled", false)
-                            Toast.makeText(context, if (serviceRunning) "Service reports running" else "Service is not reporting as running", Toast.LENGTH_SHORT).show()
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Refresh monitoring status") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedButton(
+                            onClick = {
+                                serviceRunning = appPrefs.getBoolean("monitor_service_running", false)
+                                monitoring = appPrefs.getBoolean("screen_monitor_enabled", false)
+                                Toast.makeText(context, if (serviceRunning) "Service reports running" else "Service is not reporting as running", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Refresh status") }
+                        OutlinedButton(
+                            onClick = {
+                                val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                    .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                openSettingsPage(context, intent, "Notification settings")
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Notification settings") }
+                    }
                     Button(
                         onClick = {
                             runCatching {
