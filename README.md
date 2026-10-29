@@ -7,9 +7,9 @@ Privacy Flip is an offline-first native Android app prototype built with Kotlin 
 - Android 8.0+ support (API 26+)
 - Home dashboard with rule counts, enabled/disabled rule health summary, and Master Pause
 - Local automation rules: create, search, enable/disable, run manually, and delete
-- Supported triggers: Manual, Screen turns ON, Screen turns OFF, Phone unlocked, and Phone starts
+- Supported triggers: Manual, Screen turns ON, Phone locks / screen turns OFF, Phone unlocked, and Phone starts
 - Supported actions: open Wi-Fi settings, Location/GPS settings, Bluetooth settings, Internet connectivity panel, this app's permissions, Android Privacy settings, and notification settings
-- Do Not Disturb toggle using Android's Notification Policy Access special permission; if access is missing, the app opens the system access screen and the user must grant it before retrying
+- Lock/unlock Do Not Disturb profile: when the screen turns off, a matching Toggle Do Not Disturb rule enables DND; when the phone is unlocked, a matching rule disables DND. Requires Android Notification Policy Access. Other system settings remain subject to Android restrictions
 - Optional user-started foreground screen monitor with persistent notification; matching screen/unlock rules create actionable notifications
 - Phone-start rules are evaluated after Android delivers BOOT_COMPLETED; supported actions can be started from their notification
 - Local activity log with copy and clear confirmation
@@ -24,7 +24,7 @@ Privacy Flip does not silently grant itself privileges. The user must grant Do N
 
 Screen ON/OFF and Phone unlocked triggers require the user to start the foreground monitoring service. Android 13+ notification permission is requested when needed. Android battery policies or vendor-specific background restrictions may stop the service. Phone-start rules require the app to have been launched at least once and Android to deliver BOOT_COMPLETED. Notifications are only shown if Android permits them.
 
-This app does **not** directly toggle Wi-Fi, mobile data, GPS, camera/microphone access for other apps, or other restricted system controls. Scheduled, app-open, and location triggers are not included in this build. Test the app on a physical device before relying on any automation; GitHub Actions success confirms compilation and APK packaging, not device behavior.
+This app does **not** directly toggle Wi-Fi, mobile data, GPS, airplane mode, or camera/microphone privacy switches for other apps. Android reserves several of these controls for system/privileged apps; ordinary user-granted permissions do not unlock all of them. Those options open Android controls rather than silently switching them. Scheduled, app-open, and location triggers are not included in this build. Test the app on a physical device before relying on any automation; GitHub Actions success confirms compilation and APK packaging, not device behavior.
 
 ## Build
 
