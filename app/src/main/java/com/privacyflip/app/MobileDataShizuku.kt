@@ -47,6 +47,7 @@ object MobileDataShizuku {
 
         override fun onServiceDisconnected(name: ComponentName?) {
             synchronized(lock) { remote = null; binding = false }
+            failPending("Shizuku service disconnected; it will reconnect automatically on the next action")
         }
 
         override fun onBindingDied(name: ComponentName?) {
@@ -178,7 +179,14 @@ object MobileDataShizuku {
 
     private fun failPending(message: String) {
         val requests: List<Request>
-        synchronized(lock) { requests = pending.toList(); pending.clear() }
+        val stateRequests: List<StateRequest>
+        synchronized(lock) {
+            requests = pending.toList()
+            pending.clear()
+            stateRequests = pendingState.toList()
+            pendingState.clear()
+        }
         requests.forEach { it.callback("ERROR|" + message) }
+        stateRequests.forEach { it.callback("UNKNOWN|service|" + message) }
     }
 }
