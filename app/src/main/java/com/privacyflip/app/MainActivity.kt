@@ -888,15 +888,20 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
             Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = name, onValueChange = { name = it.take(48) }, label = { Text("Rule name") }, singleLine = true)
                 Text("Trigger", style = MaterialTheme.typography.labelLarge)
-                listOf("Manual", "Screen turns ON", "Phone locks / screen turns OFF", "Phone unlocked", "Phone starts", MobileDataShizuku.TRIGGER_NAME).forEach { option ->
+                listOf("Manual", "Screen turns ON", "Phone locks / screen turns OFF", "Phone unlocked", "Phone starts").forEach { option ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = trigger == option, onClick = { trigger = option; if (option == MobileDataShizuku.TRIGGER_NAME) action = MobileDataShizuku.ACTION_NAME else if (action == MobileDataShizuku.ACTION_NAME) action = "Open Privacy settings" })
+                        RadioButton(selected = trigger == option, onClick = { trigger = option; if (option != "Phone locks / screen turns OFF" && action.startsWith("Auto:")) action = "Open Privacy settings" })
                         Text(option)
                     }
                 }
                 Text("Action", style = MaterialTheme.typography.labelLarge)
                 listOf(
-                    MobileDataShizuku.ACTION_NAME,
+                    "Auto: Mobile data OFF on lock / ON on unlock",
+                    "Auto: Wi-Fi OFF on lock / ON on unlock",
+                    "Auto: Bluetooth OFF on lock / ON on unlock",
+                    "Auto: Location OFF on lock / ON on unlock",
+                    "Auto: Camera privacy ON on lock / OFF on unlock",
+                    "Auto: Microphone privacy ON on lock / OFF on unlock",
                     "Open Wi-Fi settings",
                     "Open Mobile data settings",
                     "Open Airplane mode settings",
@@ -914,16 +919,16 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(selected = action == option, onClick = {
                             action = option
-                            trigger = if (option == MobileDataShizuku.ACTION_NAME) MobileDataShizuku.TRIGGER_NAME
-                                else if (trigger == MobileDataShizuku.TRIGGER_NAME) "Manual"
+                            trigger = if (option.startsWith("Auto:") || option == "Toggle Do Not Disturb") "Phone locks / screen turns OFF"
+                                else if (trigger == "Phone locks / screen turns OFF") "Manual"
                                 else trigger
                         })
                         Text(option)
                     }
                 }
-                if (action == MobileDataShizuku.ACTION_NAME) {
+                if (action.startsWith("Auto:")) {
                     Text(
-                        "Needs Shizuku running and Privacy Flip permission granted. Lock turns the selected radio/control OFF (Camera/Microphone privacy turns ON); unlock reverses it. Start screen monitoring. Commands may vary by Android version and phone.",
+                        "Needs Shizuku running and Privacy Flip permission granted. The selected control changes on screen-off and reverses on phone unlock. Camera/Microphone privacy switches ON while locked. Start screen monitoring. Device/OEM restrictions may cause a command to fail; failures are logged.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
                     )
