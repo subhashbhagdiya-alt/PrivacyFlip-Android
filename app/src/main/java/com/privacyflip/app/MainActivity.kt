@@ -701,8 +701,9 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
         }
         item { SettingRow("Dark theme", "Use a darker interface", dark, onDark) }
         item { SettingRow("Advanced Developer Mode", "Show diagnostic details and advanced options", developer, onDeveloper) }
-        item { ShizukuSetupCard() }
+        item { AppDetailsCard() }
         item { DeviceAdminCard() }
+        item { ShizukuSetupCard() }
         item {
             Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -852,6 +853,92 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
     }
 }
 
+
+@Composable
+private fun AppDetailsCard() {
+    val context = LocalContext.current
+    var showDetails by remember { mutableStateOf(false) }
+    val packageInfo = remember(context) {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0) }.getOrNull()
+    }
+    val versionName = packageInfo?.versionName ?: "0.3.0"
+    val targetSdk = context.applicationInfo.targetSdkVersion
+    val androidVersion = "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})"
+
+    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(Icons.Default.Shield, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("App details", fontWeight = FontWeight.Bold)
+                    Text("Version, compatibility, permissions and privacy", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Text("Privacy Flip $versionName · Android 8.0+ · Offline-first", style = MaterialTheme.typography.bodyMedium)
+            Button(onClick = { showDetails = true }, modifier = Modifier.fillMaxWidth()) {
+                Text("View full app details")
+            }
+            OutlinedButton(
+                onClick = {
+                    openSettingsPage(
+                        context,
+                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = Uri.parse("package:${context.packageName}")
+                        },
+                        "Android app details"
+                    )
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Android system app details") }
+        }
+    }
+
+    if (showDetails) {
+        AlertDialog(
+            onDismissRequest = { showDetails = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(Icons.Default.Shield, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+                    Column {
+                        Text("Privacy Flip")
+                        Text("App details & capabilities", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            },
+            text = {
+                Column(
+                    Modifier.fillMaxWidth().heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    AppDetailLine("Version", versionName)
+                    AppDetailLine("Package", context.packageName)
+                    AppDetailLine("Current Android", androidVersion)
+                    AppDetailLine("Minimum Android", "Android 8.0 (API 26)")
+                    AppDetailLine("Target Android API", targetSdk.toString())
+                    AppDetailLine("Storage", "Rules and logs saved locally on this device")
+                    AppDetailLine("Network", "No INTERNET permission declared")
+                    AppDetailLine("Works without Shizuku", "Rules, history, JSON backup, theme, Android settings shortcuts, Device Admin screen lock, and Do Not Disturb after its special access is granted")
+                    AppDetailLine("Advanced automation", "Mobile Data, Wi-Fi, Bluetooth, Location and sensor privacy lock/unlock actions currently use optional Shizuku access and need device-level testing")
+                    AppDetailLine("Permission principle", "Privacy Flip does not silently grant itself permissions. Android opens system settings when user approval is needed.")
+                    AppDetailLine("Important limitation", "Device Admin does not grant full system access and cannot by itself toggle Mobile Data on modern Android.")
+                    AppDetailLine("Source code", "github.com/subhashbhagdiya-alt/PrivacyFlip-Android")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showDetails = false }) { Text("Done") }
+            }
+        )
+    }
+}
+
+@Composable
+private fun AppDetailLine(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+        Text(value, style = MaterialTheme.typography.bodyMedium)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    }
+}
 
 @Composable
 private fun ShizukuSetupCard() {
