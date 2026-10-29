@@ -10,6 +10,29 @@ import java.util.concurrent.TimeUnit
  * are never accepted from the app process.
  */
 class FlipShellUserService : IPrivacyFlipShell.Stub() {
+    override fun getOptionState(option: String): String {
+        val command = when (option) {
+            "wifi" -> "settings get global wifi_on"
+            "bluetooth" -> "settings get global bluetooth_on"
+            "location" -> "settings get secure location_mode"
+            else -> return "UNKNOWN|Unsupported state query."
+        }
+        return try {
+            val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", command))
+            if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                process.destroyForcibly()
+                return "UNKNOWN|State query timed out."
+            }
+            val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
+            if (process.exitValue() != 0) return "UNKNOWN|State query failed."
+            val value = output.toIntOrNull() ?: return "UNKNOWN|Android returned an unreadable state."
+            val enabled = if (option == "location") value != 0 else value == 1
+            if (enabled) "ENABLED" else "DISABLED"
+        } catch (e: Exception) {
+            "UNKNOWN|" + (e.message ?: "State query failed.")
+        }
+    }
+
     override fun setOption(option: String, enabled: Boolean): String {
         val command = when (option) {
             "mobile_data" -> "svc data " + if (enabled) "enable" else "disable"
