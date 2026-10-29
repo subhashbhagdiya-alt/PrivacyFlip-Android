@@ -223,8 +223,8 @@ private fun runRule(context: Context, rule: FlipRule, rules: MutableList<FlipRul
     if (paused) { log("Skipped '${rule.name}': Master Pause is enabled"); return }
     if (!rule.enabled) { log("Skipped '${rule.name}': rule is disabled"); return }
     val action = rule.action.trim().lowercase()
-    if (rule.action == MobileDataShizuku.ACTION_NAME) {
-        log("Mobile Data Lock/Unlock automation is event-based. Set up Shizuku in Settings and keep screen monitoring enabled.")
+    if (rule.action.startsWith("Auto:")) {
+        log("Automatic lock/unlock action is event-based. Start Shizuku, grant permission in Settings, and keep screen monitoring enabled.")
         return
     }
     if (action == "log only (no system change)") {
@@ -470,7 +470,7 @@ private fun RuleCard(rule: FlipRule, onToggle: (Boolean) -> Unit, onRun: () -> U
             ) {
                 Text(
                     when {
-                        rule.action == MobileDataShizuku.ACTION_NAME -> "Requires Shizuku; Mobile Data OFF on lock and ON on unlock"
+                        rule.action.startsWith("Auto:") -> "Requires Shizuku; applies this system control on lock/unlock"
                         rule.action.equals("Toggle Do Not Disturb", ignoreCase = true) -> "Uses Android Do Not Disturb access"
                         else -> "Opens Android controls; confirm changes there"
                     },
