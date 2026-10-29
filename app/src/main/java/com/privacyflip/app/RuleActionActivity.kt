@@ -1,6 +1,8 @@
 package com.privacyflip.app
 
 import android.app.Activity
+import android.app.NotificationManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -20,6 +22,29 @@ class RuleActionActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val action = intent.getStringExtra(EXTRA_ACTION).orEmpty().trim().lowercase()
+        if (action == "toggle do not disturb") {
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            if (!manager.isNotificationPolicyAccessGranted) {
+                runCatching { startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)) }
+                    .onFailure { Toast.makeText(this, "Could not open Do Not Disturb access settings", Toast.LENGTH_LONG).show() }
+                finish()
+                return
+            }
+            runCatching {
+                manager.setInterruptionFilter(
+                    if (manager.currentInterruptionFilter == NotificationManager.INTERRUPTION_FILTER_ALL)
+                        NotificationManager.INTERRUPTION_FILTER_PRIORITY
+                    else NotificationManager.INTERRUPTION_FILTER_ALL
+                )
+            }.onSuccess {
+                val enabled = manager.currentInterruptionFilter != NotificationManager.INTERRUPTION_FILTER_ALL
+                Toast.makeText(this, "Do Not Disturb " + if (enabled) "enabled" else "disabled", Toast.LENGTH_SHORT).show()
+            }.onFailure {
+                Toast.makeText(this, "Could not change Do Not Disturb", Toast.LENGTH_LONG).show()
+            }
+            finish()
+            return
+        }
         val target = when (action) {
             "open wi-fi settings", "wifi settings" -> Intent(Settings.ACTION_WIFI_SETTINGS)
             "open location/gps settings", "location settings" -> Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
