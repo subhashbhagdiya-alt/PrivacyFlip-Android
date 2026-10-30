@@ -102,28 +102,18 @@ class ScreenMonitorService : Service() {
                                         } else {
                                             MobileDataRestoreController.onUnlock(this@ScreenMonitorService, logAction)
                                         }
-                                    } else if (option == "wifi" || option == "bluetooth" || option == "location") {
+                                    } else {
                                         val logAction: (String) -> Unit = { message ->
                                             appendLog(prefs, "$trigger · $name: $message")
                                         }
+                                        val sensorPrivacy = option == "camera_privacy" || option == "microphone_privacy"
                                         if (trigger == "Screen turns OFF") {
-                                            PairedFeatureRestoreController.onLock(this@ScreenMonitorService, option, name, logAction)
+                                            PairedFeatureRestoreController.onLock(
+                                                this@ScreenMonitorService, option, name, sensorPrivacy, logAction
+                                            )
                                         } else {
                                             PairedFeatureRestoreController.onUnlock(this@ScreenMonitorService, option, logAction)
                                         }
-                                    } else if (option == "camera_privacy" || option == "microphone_privacy") {
-                                        val logAction: (String) -> Unit = { message ->
-                                            appendLog(prefs, "$trigger · $name: $message")
-                                        }
-                                        if (trigger == "Screen turns OFF") {
-                                            SensorPrivacyRestoreController.onLock(this@ScreenMonitorService, option, name, logAction)
-                                        } else {
-                                            SensorPrivacyRestoreController.onUnlock(this@ScreenMonitorService, option, logAction)
-                                        }
-                                    } else {
-                                        val message = "$option automation is not supported by the safe restore controller."
-                                        appendLog(prefs, "$trigger · $name: $message")
-                                        postAutomationFailureNotification(name, message)
                                     }
                                 }
                                 messages.add("$trigger · $name: requested ${pairedOptions.size} automatic feature(s).")
