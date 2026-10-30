@@ -70,9 +70,31 @@ class FlipShellUserService : IPrivacyFlipShell.Stub() {
             if (globalState.equals("true", ignoreCase = true)) return "ENABLED"
 
             val sensorId = if (option == "camera_privacy") 2 else 1
-            val blocks = Regex("(?s)individual_enabled_sensor\\s*\\{([^}]*)\\}")
+
+            // Android 14+ exposes per-sensor toggle types and state types.
+            val sensorMarkers = Regex("(?m)^\\s*sensors\\s*\\{").findAll(section).toList()
+            for (index in sensorMarkers.indices) {
+                val start = sensorMarkers[index].range.last + 1
+                val end = if (index + 1 < sensorMarkers.size) sensorMarkers[index + 1].range.first else section.length
+                val block = section.substring(start, end)
+                if (!Regex("\\bsensor\\s*:\\s*" + sensorId + "\\b").containsMatchIn(block)) continue
+                val toggleBlocks = Regex("(?s)toggles\\s*\\{([^}]*)\\}").findAll(block).map { it.groupValues[1] }.toList()
+                if (toggleBlocks.isNotEmpty()) {
+                    val states = toggleBlocks.mapNotNull { toggle ->
+                        val type = Regex("\\btoggle_type\\s*:\\s*(\\d+|[A-Z_]+)").find(toggle)?.groupValues?.get(1)
+                        val stateType = Regex("\\bstate_type\\s*:\\s*(\\d+|[A-Z_]+)").find(toggle)?.groupValues?.get(1)
+                        if (type == "1" || type == "SOFTWARE" || type == "2" || type == "HARDWARE") stateType else null
+                    }
+                    if (states.any { it == "1" || it == "ENABLED" }) return "ENABLED"
+                    if (states.isNotEmpty() && states.all { it == "2" || it == "DISABLED" }) return "DISABLED"
+                    return "UNKNOWN|Sensor toggle state type was not recognized."
+                }
+            }
+
+            // Older Android dumps expose individual_enabled_sensor with an explicit boolean.
+            val legacyBlocks = Regex("(?s)individual_enabled_sensor\\s*\\{([^}]*)\\}")
                 .findAll(section).map { it.groupValues[1] }
-            val sensorBlock = blocks.firstOrNull { block ->
+            val sensorBlock = legacyBlocks.firstOrNull { block ->
                 Regex("\\bsensor\\s*:\\s*" + sensorId + "\\b").containsMatchIn(block)
             } ?: return "UNKNOWN|No explicit per-sensor state was exposed; refusing to guess."
             val enabled = Regex("\\bis_enabled\\s*:\\s*(true|false)", RegexOption.IGNORE_CASE)
