@@ -35,75 +35,118 @@ class FlipShellUserService : IPrivacyFlipShell.Stub() {
         }
     }
 
+    /**
+     * Reads only the per-sensor software privacy toggle that the matching
+     * cmd sensor_privacy enable/disable action changes. Global and hardware
+     * privacy switches are deliberately not treated as our owned toggle.
+     */
     private fun readSensorPrivacyState(option: String): String {
         if (Build.VERSION.SDK_INT < 31) {
             return "UNKNOWN|Camera and microphone sensor privacy requires Android 12 or newer."
         }
+        val sensorName = if (option == "camera_privacy") "CAMERA" else "MICROPHONE"
+        val sensorId = if (option == "camera_privacy") 2 else 1
+
         return try {
-            val userProcess = Runtime.getRuntime().exec(arrayOf("sh", "-c", "am get-current-user"))
-            if (!userProcess.waitFor(4, TimeUnit.SECONDS)) {
-                userProcess.destroyForcibly()
-                return "UNKNOWN|Could not identify the active Android user."
-            }
-            val userId = userProcess.inputStream.bufferedReader().use { it.readText() }.trim().toIntOrNull()
+            val userResult = runShell("am get-current-user", 4)
+            if (userResult.first != 0) return "UNKNOWN|Could not identify the active Android user."
+            val userId = userResult.second.trim().toIntOrNull()
                 ?: return "UNKNOWN|Android returned an unreadable current-user ID."
 
-            val dump = Runtime.getRuntime().exec(arrayOf("sh", "-c", "dumpsys sensor_privacy"))
-            if (!dump.waitFor(6, TimeUnit.SECONDS)) {
-                dump.destroyForcibly()
-                return "UNKNOWN|Sensor privacy state query timed out."
-            }
-            val output = dump.inputStream.bufferedReader().use { it.readText() }
-            if (dump.exitValue() != 0 || !output.contains("SENSOR PRIVACY MANAGER STATE", ignoreCase = true)) {
+            val dumpResult = runShell("dumpsys sensor_privacy", 7)
+            if (dumpResult.first != 0) return "UNKNOWN|Could not read Android sensor privacy state."
+            val dump = dumpResult.second
+            if (dump.contains("Permission Denial", ignoreCase = true) ||
+                dump.contains("Can't find service", ignoreCase = true) ||
+                !dump.contains("SENSOR PRIVACY MANAGER STATE", ignoreCase = true)) {
                 return "UNKNOWN|Sensor privacy dump is unavailable on this Android build."
             }
 
-            val sections = Regex("(?s)users\\s*\\{(.*?)(?=\\n\\s*users\\s*\\{|$)")
-                .findAll(output).map { it.groupValues[1] }
-            val section = sections.firstOrNull {
-                Regex("\\buser_id\\s*:\\s*" + userId + "\\b").containsMatchIn(it)
-            } ?: return "UNKNOWN|Current user was not present in the sensor privacy dump."
+            val userBlock = findNamedBlocks(dump, "users").firstOrNull { block ->
+                Regex("""(?m)^\s*user_id\s*:\s*$userId\b""").containsMatchIn(block)
+            } ?: return "UNKNOWN|Current user's sensor privacy state was not found."
 
-            val beforeIndividual = section.substringBefore("individual_enabled_sensor")
-            val globalState = Regex("\\bis_enabled\\s*:\\s*(true|false)", RegexOption.IGNORE_CASE)
-                .find(beforeIndividual)?.groupValues?.get(1)
-            if (globalState.equals("true", ignoreCase = true)) return "ENABLED"
-
-            val sensorId = if (option == "camera_privacy") 2 else 1
-
-            // Android 14+ exposes per-sensor toggle types and state types.
-            val sensorMarkers = Regex("(?m)^\\s*sensors\\s*\\{").findAll(section).toList()
-            for (index in sensorMarkers.indices) {
-                val start = sensorMarkers[index].range.last + 1
-                val end = if (index + 1 < sensorMarkers.size) sensorMarkers[index + 1].range.first else section.length
-                val block = section.substring(start, end)
-                if (!Regex("\\bsensor\\s*:\\s*" + sensorId + "\\b").containsMatchIn(block)) continue
-                val toggleBlocks = Regex("(?s)toggles\\s*\\{([^}]*)\\}").findAll(block).map { it.groupValues[1] }.toList()
-                if (toggleBlocks.isNotEmpty()) {
-                    val states = toggleBlocks.mapNotNull { toggle ->
-                        val type = Regex("\\btoggle_type\\s*:\\s*(\\d+|[A-Z_]+)").find(toggle)?.groupValues?.get(1)
-                        val stateType = Regex("\\bstate_type\\s*:\\s*(\\d+|[A-Z_]+)").find(toggle)?.groupValues?.get(1)
-                        if (type == "1" || type == "SOFTWARE" || type == "2" || type == "HARDWARE") stateType else null
-                    }
-                    if (states.any { it == "1" || it == "ENABLED" }) return "ENABLED"
-                    if (states.isNotEmpty() && states.all { it == "2" || it == "DISABLED" }) return "DISABLED"
-                    return "UNKNOWN|Sensor toggle state type was not recognized."
-                }
+            // Android 12/13 expose individual_enabled_sensor entries. No entry
+            // means the per-sensor software toggle is OFF by default.
+            val legacyBlocks = findNamedBlocks(userBlock, "individual_enabled_sensor")
+            val legacySensor = legacyBlocks.firstOrNull { sensorMatches(it, sensorName, sensorId) }
+            if (legacySensor != null) {
+                val enabled = Regex("""(?m)^\s*is_enabled\s*:\s*(true|false)\b""", RegexOption.IGNORE_CASE)
+                    .find(legacySensor)?.groupValues?.get(1)
+                    ?: return "UNKNOWN|Per-sensor state was not explicit."
+                return if (enabled.equals("true", ignoreCase = true)) "ENABLED" else "DISABLED"
+            }
+            if (legacyBlocks.isNotEmpty() || userBlock.contains("individual_enabled_sensor")) {
+                return "DISABLED"
             }
 
-            // Older Android dumps expose individual_enabled_sensor with an explicit boolean.
-            val legacyBlocks = Regex("(?s)individual_enabled_sensor\\s*\\{([^}]*)\\}")
-                .findAll(section).map { it.groupValues[1] }
-            val sensorBlock = legacyBlocks.firstOrNull { block ->
-                Regex("\\bsensor\\s*:\\s*" + sensorId + "\\b").containsMatchIn(block)
-            } ?: return "UNKNOWN|No explicit per-sensor state was exposed; refusing to guess."
-            val enabled = Regex("\\bis_enabled\\s*:\\s*(true|false)", RegexOption.IGNORE_CASE)
-                .find(sensorBlock)?.groupValues?.get(1)
-                ?: return "UNKNOWN|Per-sensor state was not explicit."
-            if (enabled.equals("true", ignoreCase = true)) "ENABLED" else "DISABLED"
+            // Newer Android releases group states under sensors -> toggles.
+            val sensorBlock = findNamedBlocks(userBlock, "sensors")
+                .firstOrNull { sensorMatches(it, sensorName, sensorId) }
+                ?: return "DISABLED"
+            val softwareToggles = findNamedBlocks(sensorBlock, "toggles").filter { toggle ->
+                Regex("""(?m)^\s*toggle_type\s*:\s*(?:SOFTWARE|1)\b""").containsMatchIn(toggle)
+            }
+            if (softwareToggles.isEmpty()) return "DISABLED"
+
+            val states = softwareToggles.mapNotNull { toggle ->
+                Regex("""(?m)^\s*state_type\s*:\s*([A-Z_]+)\b""")
+                    .find(toggle)?.groupValues?.get(1)
+            }
+            when {
+                states.any { it == "ENABLED" || it == "ENABLED_EXCEPT_ALLOWLISTED_APPS" } -> "ENABLED"
+                states.any { it == "DISABLED" } -> "DISABLED"
+                else -> "UNKNOWN|Could not interpret the software sensor privacy state."
+            }
         } catch (e: Exception) {
             "UNKNOWN|" + (e.message ?: "Sensor privacy state query failed.")
         }
+    }
+
+    private fun sensorMatches(block: String, sensorName: String, sensorId: Int): Boolean {
+        val value = Regex("""(?m)^\s*sensor\s*:\s*([^\r\n]+)""")
+            .find(block)?.groupValues?.get(1)?.trim() ?: return false
+        return value.startsWith(sensorName, ignoreCase = true) ||
+            Regex("""^$sensorId(?:\b|\s*\()""").containsMatchIn(value)
+    }
+
+    /** Extract balanced text-proto blocks, including nested child blocks. */
+    private fun findNamedBlocks(source: String, field: String): List<String> {
+        val pattern = Regex("(?m)^\\s*" + Regex.escape(field) + "\\s*\\{")
+        val blocks = mutableListOf<String>()
+        var cursor = 0
+        while (cursor < source.length) {
+            val match = pattern.find(source, cursor) ?: break
+            val open = source.indexOf('{', match.range.first)
+            var depth = 0
+            var end = -1
+            for (index in open until source.length) {
+                when (source[index]) {
+                    '{' -> depth++
+                    '}' -> {
+                        depth--
+                        if (depth == 0) {
+                            end = index
+                            break
+                        }
+                    }
+                }
+            }
+            if (end < 0) break
+            blocks.add(source.substring(open + 1, end))
+            cursor = end + 1
+        }
+        return blocks
+    }
+
+    private fun runShell(command: String, timeoutSeconds: Long): Pair<Int, String> {
+        val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", "$command 2>&1"))
+        if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
+            process.destroyForcibly()
+            return -1 to "Command timed out."
+        }
+        val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
+        return process.exitValue() to output
     }
 
     override fun setOption(option: String, enabled: Boolean): String {
