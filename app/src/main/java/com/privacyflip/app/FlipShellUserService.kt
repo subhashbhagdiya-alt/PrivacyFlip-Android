@@ -60,7 +60,7 @@ class FlipShellUserService : IPrivacyFlipShell.Stub() {
             }
 
             val userBlock = findNamedBlocks(dump, "users").firstOrNull { block ->
-                Regex("""(?m)^\\s*user_id\\s*:\\s*$userId\\b""").containsMatchIn(block)
+                Regex("""(?m)^\s*user_id\s*:\s*$userId\b""").containsMatchIn(block)
             } ?: return "UNKNOWN|Current user's sensor privacy state was not found."
 
             // Android 13 and earlier expose individual_enabled_sensor records.
@@ -69,7 +69,7 @@ class FlipShellUserService : IPrivacyFlipShell.Stub() {
                 val sensorBlock = legacySensors.firstOrNull { block ->
                     sensorMatches(block, sensorName, sensorId)
                 } ?: return "DISABLED"
-                val value = Regex("""(?m)^\\s*is_enabled\\s*:\\s*(true|false)\\b""")
+                val value = Regex("""(?m)^\s*is_enabled\s*:\s*(true|false)\b""")
                     .find(sensorBlock)?.groupValues?.get(1)
                     ?: return "UNKNOWN|Sensor privacy dump omitted the sensor state."
                 return if (value == "true") "ENABLED" else "DISABLED"
@@ -82,16 +82,16 @@ class FlipShellUserService : IPrivacyFlipShell.Stub() {
             val toggles = findNamedBlocks(sensorBlock, "toggles")
             if (toggles.isEmpty()) return "DISABLED"
             val software = toggles.filter { block ->
-                Regex("""(?m)^\\s*toggle_type\\s*:\\s*(?:SOFTWARE|1)\\b""")
+                Regex("""(?m)^\s*toggle_type\s*:\s*(?:SOFTWARE|1)\b""")
                     .containsMatchIn(block)
             }
             if (software.isEmpty()) return "DISABLED"
             val enabled = software.any { block ->
-                Regex("""(?m)^\\s*state_type\\s*:\\s*(?:ENABLED|ENABLED_EXCEPT_ALLOWLISTED_APPS)(?:\\b|\\s*\\()""")
+                Regex("""(?m)^\s*state_type\s*:\s*(?:ENABLED|ENABLED_EXCEPT_ALLOWLISTED_APPS)(?:\b|\s*\()""")
                     .containsMatchIn(block)
             }
             if (software.any { block ->
-                Regex("""(?m)^\\s*state_type\\s*:\\s*DISABLED\\b""").containsMatchIn(block)
+                Regex("""(?m)^\s*state_type\s*:\s*DISABLED\b""").containsMatchIn(block)
             }) {
                 if (enabled) "ENABLED" else "DISABLED"
             } else if (enabled) {
@@ -105,15 +105,15 @@ class FlipShellUserService : IPrivacyFlipShell.Stub() {
     }
 
     private fun sensorMatches(block: String, sensorName: String, sensorId: Int): Boolean {
-        val line = Regex("""(?m)^\\s*sensor\\s*:\\s*([^\\r\\n]+)""")
+        val line = Regex("""(?m)^\s*sensor\s*:\s*([^\r\n]+)""")
             .find(block)?.groupValues?.get(1)?.trim() ?: return false
         return line.startsWith(sensorName, ignoreCase = true) ||
-            Regex("""^$sensorId(?:\\b|\\s*\\()""").containsMatchIn(line)
+            Regex("""^$sensorId(?:\b|\s*\()""").containsMatchIn(line)
     }
 
     /** Extracts balanced text-proto blocks such as users { ... } or toggles { ... }. */
     private fun findNamedBlocks(source: String, field: String): List<String> {
-        val pattern = Regex("""(?m)^\\s*${Regex.escape(field)}\\s*\\{""")
+        val pattern = Regex("""(?m)^\s*${Regex.escape(field)}\s*\{""")
         val blocks = mutableListOf<String>()
         var cursor = 0
         while (cursor < source.length) {
