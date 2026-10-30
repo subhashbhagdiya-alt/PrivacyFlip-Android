@@ -15,6 +15,11 @@ object PairedFeatureRestoreController {
 
     private fun key(option: String, suffix: String) = "paired_restore_" + option + "_" + suffix
 
+    // Backwards-compatible entry point for Wi-Fi, Bluetooth and Location (OFF while locked).
+    fun onLock(context: Context, option: String, ruleName: String, log: (String) -> Unit) {
+        onLock(context, option, ruleName, false, log)
+    }
+
     fun onLock(context: Context, option: String, ruleName: String, lockedStateEnabled: Boolean, log: (String) -> Unit) {
         if (option !in supportedOptions) {
             log(option + ": safe restore is not available; action skipped.")
