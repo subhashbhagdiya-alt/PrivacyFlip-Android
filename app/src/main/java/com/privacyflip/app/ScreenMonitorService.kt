@@ -111,10 +111,17 @@ class ScreenMonitorService : Service() {
                                         } else {
                                             PairedFeatureRestoreController.onUnlock(this@ScreenMonitorService, option, logAction)
                                         }
+                                    } else if (option == "camera_privacy" || option == "microphone_privacy") {
+                                        val logAction: (String) -> Unit = { message ->
+                                            appendLog(prefs, "$trigger · $name: $message")
+                                        }
+                                        if (trigger == "Screen turns OFF") {
+                                            SensorPrivacyRestoreController.onLock(this@ScreenMonitorService, option, name, logAction)
+                                        } else {
+                                            SensorPrivacyRestoreController.onUnlock(this@ScreenMonitorService, option, logAction)
+                                        }
                                     } else {
-                                        // Sensor privacy state readback is not implemented yet, so avoid
-                                        // blindly toggling it and potentially overriding the user's choice.
-                                        val message = "$option automation skipped: safe state verification is not available yet."
+                                        val message = "$option automation is not supported by the safe restore controller."
                                         appendLog(prefs, "$trigger · $name: $message")
                                         postAutomationFailureNotification(name, message)
                                     }
