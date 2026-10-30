@@ -4,9 +4,8 @@ import android.content.Context
 import android.content.SharedPreferences
 
 /**
- * State-aware lock/unlock controller for Wi-Fi, Bluetooth and Location.
- * It only turns a feature back ON when it verified that it was ON before
- * lock and that Privacy Flip successfully turned it OFF.
+ * Restores a feature to the exact state observed before lock.
+ * Connectivity/location go OFF while camera/microphone privacy goes ON.
  */
 object PairedFeatureRestoreController {
     private const val PREFS = "privacy_flip"
@@ -14,11 +13,11 @@ object PairedFeatureRestoreController {
     private val busy = mutableSetOf<String>()
     private val unlockQueued = mutableSetOf<String>()
 
-    private fun key(option: String, suffix: String) = "paired_restore_${option}_${suffix}"
+    private fun key(option: String, suffix: String) = "paired_restore_" + option + "_" + suffix
 
-    fun onLock(context: Context, option: String, ruleName: String, log: (String) -> Unit) {
+    fun onLock(context: Context, option: String, ruleName: String, lockedStateEnabled: Boolean, log: (String) -> Unit) {
         if (option !in supportedOptions) {
-            log("${option}: safe restore is not available; action skipped.")
+            log(option + ": safe restore is not available; action skipped.")
             return
         }
         val app = context.applicationContext
@@ -27,38 +26,43 @@ object PairedFeatureRestoreController {
             if (!busy.add(option)) return
             if (prefs.getBoolean(key(option, "owned"), false)) {
                 busy.remove(option)
-                log("${option}: existing restore record retained; duplicate lock ignored.")
+                log(option + ": existing restore record retained; duplicate lock ignored.")
                 return
             }
         }
 
         ShizukuAutomation.readState(app, option) { state ->
+            val target = if (lockedStateEnabled) "ENABLED" else "DISABLED"
             when (state) {
-                "ENABLED" -> {
+                target -> {
+                    log(option + ": already in its requested lock state; no restore action created.")
+                    finish(app, option, log)
+                }
+                "ENABLED", "DISABLED" -> {
                     val saved = prefs.edit()
                         .putBoolean(key(option, "owned"), true)
-                        .putString(key(option, "original"), "ENABLED")
-                        .putString(key(option, "phase"), "disable_pending")
+                        .putString(key(option, "original"), state)
+                        .putString(key(option, "phase"), "change_pending")
                         .putString(key(option, "rule"), ruleName)
                         .commit()
                     if (!saved) {
-                        log("${option}: could not save original state; no change made.")
+                        log(option + ": could not save original state; no change made.")
                         finish(app, option, log)
                     } else {
-                        ShizukuAutomation.apply(app, option, false) { result ->
+                        ShizukuAutomation.apply(app, option, lockedStateEnabled) { result ->
                             ShizukuAutomation.readState(app, option) { verified ->
                                 when (verified) {
-                                    "DISABLED" -> {
+                                    target -> {
                                         prefs.edit().putString(key(option, "phase"), "locked").commit()
-                                        log("${option}: OFF confirmed; original ON state saved for unlock.")
+                                        log(option + ": lock state " + target + " confirmed; original " + state + " saved for unlock.")
                                     }
-                                    "ENABLED" -> {
+                                    state -> {
                                         clear(prefs, option)
-                                        log("${option}: remained ON; disable did not take effect. " + result.take(120))
+                                        log(option + ": remained " + state + "; requested lock change did not take effect. " + result.take(120))
                                     }
                                     else -> {
-                                        prefs.edit().putString(key(option, "phase"), "disable_unconfirmed").commit()
-                                        log("${option}: OFF state unconfirmed; restore record retained. " + verified.take(140))
+                                        prefs.edit().putString(key(option, "phase"), "change_unconfirmed").commit()
+                                        log(option + ": lock state unconfirmed; restore record retained safely. " + verified.take(140))
                                     }
                                 }
                                 finish(app, option, log)
@@ -66,12 +70,8 @@ object PairedFeatureRestoreController {
                         }
                     }
                 }
-                "DISABLED" -> {
-                    log("${option}: already OFF before lock; no unlock action will be created.")
-                    finish(app, option, log)
-                }
                 else -> {
-                    log("${option}: lock skipped because state is UNKNOWN. " + state.take(150))
+                    log(option + ": lock skipped because state is UNKNOWN. " + state.take(150))
                     finish(app, option, log)
                 }
             }
@@ -86,31 +86,37 @@ object PairedFeatureRestoreController {
                 unlockQueued.add(option)
                 return
             }
-            if (!prefs.getBoolean(key(option, "owned"), false) ||
-                prefs.getString(key(option, "original"), null) != "ENABLED") {
+            if (!prefs.getBoolean(key(option, "owned"), false)) {
                 busy.remove(option)
-                log("${option}: restore skipped; Privacy Flip has no verified OFF change to undo.")
+                log(option + ": restore skipped; Privacy Flip has no verified change to undo.")
                 return
             }
         }
 
+        val original = prefs.getString(key(option, "original"), null)
+        if (original != "ENABLED" && original != "DISABLED") {
+            log(option + ": saved original state is missing; no guessed change made.")
+            finish(app, option, log)
+            return
+        }
+
         ShizukuAutomation.readState(app, option) { state ->
             when (state) {
-                "ENABLED" -> {
+                original -> {
                     clear(prefs, option)
-                    log("${option}: already ON; restore record cleared without changing it.")
+                    log(option + ": already back to its original state; restore record cleared.")
                     finish(app, option, log)
                 }
-                "DISABLED" -> {
+                "ENABLED", "DISABLED" -> {
                     prefs.edit().putString(key(option, "phase"), "restore_pending").commit()
-                    ShizukuAutomation.apply(app, option, true) { result ->
+                    ShizukuAutomation.apply(app, option, original == "ENABLED") { result ->
                         ShizukuAutomation.readState(app, option) { verified ->
-                            if (verified == "ENABLED") {
+                            if (verified == original) {
                                 clear(prefs, option)
-                                log("${option}: ON confirmed; original state restored.")
+                                log(option + ": original " + original + " state restored and confirmed.")
                             } else {
                                 prefs.edit().putString(key(option, "phase"), "restore_unconfirmed").commit()
-                                log("${option}: restore unconfirmed; record retained for retry. " +
+                                log(option + ": restore unconfirmed; record retained for retry. " +
                                     (if (verified.startsWith("UNKNOWN")) verified else result).take(150))
                             }
                             finish(app, option, log)
@@ -119,7 +125,7 @@ object PairedFeatureRestoreController {
                 }
                 else -> {
                     prefs.edit().putString(key(option, "phase"), "restore_unconfirmed").commit()
-                    log("${option}: restore postponed because state is UNKNOWN; record retained. " + state.take(150))
+                    log(option + ": restore postponed because state is UNKNOWN; record retained. " + state.take(150))
                     finish(app, option, log)
                 }
             }
@@ -143,5 +149,7 @@ object PairedFeatureRestoreController {
             .commit()
     }
 
-    private val supportedOptions = setOf("wifi", "bluetooth", "location")
+    private val supportedOptions = setOf(
+        "wifi", "bluetooth", "location", "camera_privacy", "microphone_privacy"
+    )
 }
