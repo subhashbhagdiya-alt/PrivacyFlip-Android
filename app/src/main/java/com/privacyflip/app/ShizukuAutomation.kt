@@ -74,7 +74,7 @@ object ShizukuAutomation {
             ComponentName(appContext, FlipShellUserService::class.java)
         ).daemon(false)
             .tag("privacy_flip_" + option)
-            .version(1)
+            .version(2)
             .processNameSuffix("privacy_flip_" + option)
 
         val completed = AtomicBoolean(false)
