@@ -73,8 +73,11 @@ class ScreenMonitorService : Service() {
                         val savedTrigger = item.optString("trigger")
                         val name = item.optString("name", "Privacy rule")
                         val action = item.optString("action", "Log only (no system change)")
-                        val pairedOption = pairedOption(action)
-                        val pairedAction = pairedOption != null || action.equals("Toggle Do Not Disturb", ignoreCase = true)
+                        // New multi-feature rules store paired actions separated by |||.
+                        // Older single-action rules remain fully compatible.
+                        val actions = action.split("|||").map { it.trim() }.filter { it.isNotEmpty() }
+                        val pairedOptions = actions.mapNotNull { pairedOption(it) }.distinct()
+                        val pairedAction = pairedOptions.isNotEmpty() || actions.any { it.equals("Toggle Do Not Disturb", ignoreCase = true) }
                         val lockUnlockTrigger = trigger == "Screen turns OFF" || trigger == "Phone unlocked"
                         val savedLockUnlockTrigger = savedTrigger == "Screen turns OFF" ||
                             savedTrigger == "Phone locks / screen turns OFF" ||
@@ -89,30 +92,33 @@ class ScreenMonitorService : Service() {
                         if (item.optBoolean("enabled", true) && triggerMatches) {
                             item.put("runs", (item.optInt("runs") + 1).coerceAtMost(1_000_000))
 
-                            if (pairedOption != null) {
-                                if (pairedOption == "mobile_data") {
-                                    // Restore only a state that this app verified and changed itself.
-                                    val logAction: (String) -> Unit = { message -> appendLog(prefs, "$trigger · $name: $message") }
-                                    if (trigger == "Screen turns OFF") {
-                                        MobileDataRestoreController.onLock(this@ScreenMonitorService, name, logAction)
-                                    } else {
-                                        MobileDataRestoreController.onUnlock(this@ScreenMonitorService, logAction)
-                                    }
-                                } else {
-                                    // Other paired controls retain their existing direct-action path for now.
-                                    val privacySensor = pairedOption == "camera_privacy" || pairedOption == "microphone_privacy"
-                                    val enabled = if (trigger == "Screen turns OFF") privacySensor else !privacySensor
-                                    ShizukuAutomation.apply(this@ScreenMonitorService, pairedOption, enabled) { result ->
-                                        if (result.startsWith("OK:")) {
-                                            appendLog(prefs, "$trigger · $name: $result")
+                            if (pairedOptions.isNotEmpty()) {
+                                pairedOptions.forEach { option ->
+                                    if (option == "mobile_data") {
+                                        // Mobile data uses the verified restore ledger.
+                                        val logAction: (String) -> Unit = { message -> appendLog(prefs, "$trigger · $name: $message") }
+                                        if (trigger == "Screen turns OFF") {
+                                            MobileDataRestoreController.onLock(this@ScreenMonitorService, name, logAction)
                                         } else {
-                                            appendLog(prefs, "$trigger · $name FAILED: $result")
-                                            postAutomationFailureNotification(name, result)
+                                            MobileDataRestoreController.onUnlock(this@ScreenMonitorService, logAction)
+                                        }
+                                    } else {
+                                        // Other controls still use the existing direct-action path;
+                                        // original-state restore for these is a separate pending improvement.
+                                        val privacySensor = option == "camera_privacy" || option == "microphone_privacy"
+                                        val enabled = if (trigger == "Screen turns OFF") privacySensor else !privacySensor
+                                        ShizukuAutomation.apply(this@ScreenMonitorService, option, enabled) { result ->
+                                            if (result.startsWith("OK:")) {
+                                                appendLog(prefs, "$trigger · $name: $result")
+                                            } else {
+                                                appendLog(prefs, "$trigger · $name FAILED: $result")
+                                                postAutomationFailureNotification(name, result)
+                                            }
                                         }
                                     }
                                 }
-                                messages.add("$trigger · $name: state-aware automation requested.")
-                            } else if (action.equals("Toggle Do Not Disturb", ignoreCase = true) && lockUnlockTrigger) {
+                                messages.add("$trigger · $name: requested ${pairedOptions.size} automatic feature(s).")
+                            } else if (actions.any { it.equals("Toggle Do Not Disturb", ignoreCase = true) } && lockUnlockTrigger) {
                                 val targetAction = if (trigger == "Screen turns OFF") "Enable Do Not Disturb" else "Disable Do Not Disturb"
                                 if (!applyDoNotDisturb(targetAction)) {
                                     matchedRules.add(name to targetAction)
