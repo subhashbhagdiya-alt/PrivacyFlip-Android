@@ -102,19 +102,21 @@ class ScreenMonitorService : Service() {
                                         } else {
                                             MobileDataRestoreController.onUnlock(this@ScreenMonitorService, logAction)
                                         }
-                                    } else {
-                                        // Other controls still use the existing direct-action path;
-                                        // original-state restore for these is a separate pending improvement.
-                                        val privacySensor = option == "camera_privacy" || option == "microphone_privacy"
-                                        val enabled = if (trigger == "Screen turns OFF") privacySensor else !privacySensor
-                                        ShizukuAutomation.apply(this@ScreenMonitorService, option, enabled) { result ->
-                                            if (result.startsWith("OK:")) {
-                                                appendLog(prefs, "$trigger · $name: $result")
-                                            } else {
-                                                appendLog(prefs, "$trigger · $name FAILED: $result")
-                                                postAutomationFailureNotification(name, result)
-                                            }
+                                    } else if (option == "wifi" || option == "bluetooth" || option == "location") {
+                                        val logAction: (String) -> Unit = { message ->
+                                            appendLog(prefs, "$trigger · $name: $message")
                                         }
+                                        if (trigger == "Screen turns OFF") {
+                                            PairedFeatureRestoreController.onLock(this@ScreenMonitorService, option, name, logAction)
+                                        } else {
+                                            PairedFeatureRestoreController.onUnlock(this@ScreenMonitorService, option, logAction)
+                                        }
+                                    } else {
+                                        // Sensor privacy state readback is not implemented yet, so avoid
+                                        // blindly toggling it and potentially overriding the user's choice.
+                                        val message = "$option automation skipped: safe state verification is not available yet."
+                                        appendLog(prefs, "$trigger · $name: $message")
+                                        postAutomationFailureNotification(name, message)
                                     }
                                 }
                                 messages.add("$trigger · $name: requested ${pairedOptions.size} automatic feature(s).")
