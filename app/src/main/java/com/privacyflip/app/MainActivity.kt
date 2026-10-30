@@ -1234,6 +1234,7 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
     var name by remember { mutableStateOf("") }
     var trigger by remember { mutableStateOf("Manual") }
     var action by remember { mutableStateOf("Open Privacy settings") }
+    var selectedActions by remember { mutableStateOf(setOf<String>()) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Create rule") },
@@ -1248,13 +1249,26 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
                     }
                 }
                 Text("Action", style = MaterialTheme.typography.labelLarge)
-                listOf(
+                val autoOptions = listOf(
                     "Auto: Mobile data OFF on lock / ON on unlock",
                     "Auto: Wi-Fi OFF on lock / ON on unlock",
                     "Auto: Bluetooth OFF on lock / ON on unlock",
                     "Auto: Location OFF on lock / ON on unlock",
                     "Auto: Camera privacy ON on lock / OFF on unlock",
-                    "Auto: Microphone privacy ON on lock / OFF on unlock",
+                    "Auto: Microphone privacy ON on lock / OFF on unlock"
+                )
+                Text("Automatic features (select multiple)", style = MaterialTheme.typography.labelLarge)
+                autoOptions.forEach { option ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(option, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        Switch(checked = option in selectedActions, onCheckedChange = { checked ->
+                            selectedActions = if (checked) selectedActions + option else selectedActions - option
+                            if (selectedActions.isNotEmpty()) trigger = "Phone locks / screen turns OFF"
+                        })
+                    }
+                }
+                Text("Other single action", style = MaterialTheme.typography.labelLarge)
+                listOf(
                     "Open Wi-Fi settings",
                     "Open Mobile data settings",
                     "Open Airplane mode settings",
@@ -1287,9 +1301,10 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
                     ) {
                         Text(option, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                         Switch(
-                            checked = action == option,
+                            checked = selectedActions.isEmpty() && action == option,
                             onCheckedChange = { selected ->
                                 if (selected) {
+                                    selectedActions = emptySet()
                                     action = option
                                     trigger = if (option.startsWith("Auto:") || option == "Toggle Do Not Disturb")
                                         "Phone locks / screen turns OFF"
@@ -1311,7 +1326,10 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
                 }
             }
         },
-        confirmButton = { Button(enabled = name.isNotBlank(), onClick = { onCreate(name.trim(), trigger, action.trim().ifBlank { "Privacy routine (demo)" }) }) { Text("Create") } },
+        confirmButton = { Button(enabled = name.isNotBlank(), onClick = {
+            val stored = if (selectedActions.isNotEmpty()) selectedActions.joinToString("|||") else action.trim()
+            onCreate(name.trim(), trigger, stored.ifBlank { "Privacy routine (demo)" })
+        }) { Text("Create") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
