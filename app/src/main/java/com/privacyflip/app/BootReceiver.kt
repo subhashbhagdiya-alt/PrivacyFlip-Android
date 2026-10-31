@@ -31,6 +31,11 @@ class BootReceiver : BroadcastReceiver() {
             }
         }
 
+        // BOOT_COMPLETED is delivered after the user unlocks credential-encrypted
+        // storage. Restore only if the keyguard is currently open; otherwise the
+        // normal Phone unlocked event will perform the restore later.
+        RestoreRecovery.recoverIfUnlocked(context, "boot");
+
         if (prefs.getBoolean("paused", false)) return
         val raw = prefs.getString("rules", null) ?: return
         val rules = try {
