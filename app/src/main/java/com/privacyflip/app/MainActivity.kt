@@ -158,7 +158,7 @@ private fun PrivacyFlipApp(prefs: android.content.SharedPreferences) {
                                 val action = o.optString("action", "Privacy routine (demo)").trim()
                                 require(name.isNotEmpty() && name.length <= 48) { "Rule ${i + 1} has an invalid name." }
                                 require(trigger.isNotEmpty() && trigger.length <= 64) { "Rule ${i + 1} has an invalid trigger." }
-                                require(action.length <= 80) { "Rule ${i + 1} has an action that is too long." }
+                                require(action.length <= 512) { "Rule ${i + 1} has an action that is too long." }
                                 val ruleId = o.optLong("id", System.currentTimeMillis() + i)
                                 require(ruleId > 0L) { "Rule ${i + 1} has an invalid ID." }
                                 FlipRule(
