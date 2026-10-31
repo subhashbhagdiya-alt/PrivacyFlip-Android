@@ -20,13 +20,10 @@ class FlipShellUserService : IPrivacyFlipShell.Stub() {
             else -> return "UNKNOWN|Unsupported state query."
         }
         return try {
-            val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", command))
-            if (!process.waitFor(5, TimeUnit.SECONDS)) {
-                process.destroyForcibly()
-                return "UNKNOWN|State query timed out."
-            }
-            val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
-            if (process.exitValue() != 0) return "UNKNOWN|State query failed."
+            val result = runShell(command, 5)
+            if (result.first == -1) return "UNKNOWN|State query timed out."
+            val output = result.second
+            if (result.first != 0) return "UNKNOWN|State query failed."
             val value = output.toIntOrNull() ?: return "UNKNOWN|Android returned an unreadable state."
             val enabled = if (option == "location") value != 0 else value == 1
             if (enabled) "ENABLED" else "DISABLED"
@@ -141,12 +138,25 @@ class FlipShellUserService : IPrivacyFlipShell.Stub() {
 
     private fun runShell(command: String, timeoutSeconds: Long): Pair<Int, String> {
         val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", "$command 2>&1"))
+        // Drain output while the process is running. Waiting first can deadlock
+        // when dumpsys fills the pipe buffer (especially on sensor_privacy).
+        val output = StringBuilder()
+        val reader = Thread {
+            runCatching {
+                process.inputStream.bufferedReader().useLines { lines ->
+                    lines.forEach { line ->
+                        if (output.length < 64_000) output.append(line).append('\n')
+                    }
+                }
+            }
+        }.apply { isDaemon = true; start() }
         if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
             process.destroyForcibly()
+            reader.join(500)
             return -1 to "Command timed out."
         }
-        val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
-        return process.exitValue() to output
+        reader.join(1_000)
+        return process.exitValue() to output.toString().trim()
     }
 
     override fun setOption(option: String, enabled: Boolean): String {
@@ -167,19 +177,14 @@ class FlipShellUserService : IPrivacyFlipShell.Stub() {
         }
 
         return try {
-            val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", command))
-            val completed = process.waitFor(8, TimeUnit.SECONDS)
-            if (!completed) {
-                process.destroyForcibly()
+            val result = runShell(command, 8)
+            if (result.first == -1) {
                 "ERROR: Android shell command timed out."
+            } else if (result.first == 0) {
+                "OK: " + option + " request accepted by Android shell." +
+                    if (result.second.isNotBlank()) " " + result.second else ""
             } else {
-                val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
-                val error = process.errorStream.bufferedReader().use { it.readText() }.trim()
-                if (process.exitValue() == 0) {
-                    "OK: " + option + " request accepted by Android shell." + if (output.isNotBlank()) " " + output else ""
-                } else {
-                    "ERROR: " + (error.ifBlank { output.ifBlank { "Command exited with code " + process.exitValue() + "." } })
-                }
+                "ERROR: " + result.second.ifBlank { "Command exited with code " + result.first + "." }
             }
         } catch (e: Exception) {
             "ERROR: " + (e.message ?: "Could not execute Android shell command.")
