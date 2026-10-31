@@ -7,28 +7,51 @@ import java.util.concurrent.TimeUnit
  * It exposes only fixed Mobile Data operations, never arbitrary shell commands.
  */
 class MobileDataUserService : IDataAutomationService.Stub() {
+    private data class CommandResult(val exitCode: Int, val output: String)
+
+    /**
+     * Drain command output while it runs. Waiting before reading a large dumpsys
+     * response can fill the process pipe and deadlock the command until timeout.
+     */
+    private fun runCommand(command: Array<String>, timeoutSeconds: Long): CommandResult? {
+        val process = ProcessBuilder(*command).redirectErrorStream(true).start()
+        val output = StringBuilder()
+        val reader = Thread {
+            runCatching {
+                process.inputStream.bufferedReader().useLines { lines ->
+                    lines.forEach { line ->
+                        if (output.length < 64_000) output.append(line).append('\n')
+                    }
+                }
+            }
+        }.apply { isDaemon = true; start() }
+
+        if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
+            process.destroyForcibly()
+            reader.join(500)
+            return null
+        }
+        reader.join(1_000)
+        return CommandResult(process.exitValue(), output.toString().trim())
+    }
+
     override fun setMobileDataEnabled(enabled: Boolean): String {
         val desired = if (enabled) "enable" else "disable"
         return try {
-            val process = Runtime.getRuntime().exec(
-                arrayOf("/system/bin/cmd", "phone", "data", desired)
-            )
-            val finished = process.waitFor(8, TimeUnit.SECONDS)
-            if (!finished) {
-                process.destroyForcibly()
-                "ERROR|timeout|Android telephony command timed out"
+            val result = runCommand(
+                arrayOf("/system/bin/cmd", "phone", "data", desired),
+                8
+            ) ?: return "ERROR|timeout|Android telephony command timed out"
+
+            val detail = result.output.ifBlank { "no command output" }.take(250)
+            if (result.exitCode == 0) {
+                "OK|exit=0|requested mobile data " + desired + "|" + detail
             } else {
-                val output = runCatching { process.inputStream.bufferedReader().use { it.readText() } }.getOrDefault("").trim()
-                val error = runCatching { process.errorStream.bufferedReader().use { it.readText() } }.getOrDefault("").trim()
-                val detail = (output.ifBlank { error.ifBlank { "no command output" } }).replace("\\n", " ").take(250)
-                if (process.exitValue() == 0) {
-                    "OK|exit=0|requested mobile data " + desired + "|" + detail
-                } else {
-                    "ERROR|exit=" + process.exitValue() + "|" + detail
-                }
+                "ERROR|exit=" + result.exitCode + "|" + detail
             }
         } catch (t: Throwable) {
-            "ERROR|" + t.javaClass.simpleName + "|" + (t.message ?: "command failed").take(220)
+            "ERROR|" + t.javaClass.simpleName + "|" +
+                (t.message ?: "command failed").take(220)
         }
     }
 
@@ -38,20 +61,16 @@ class MobileDataUserService : IDataAutomationService.Stub() {
      */
     override fun getMobileDataState(): String {
         return try {
-            val process = Runtime.getRuntime().exec(
-                arrayOf("/system/bin/sh", "-c", "dumpsys telephony.registry")
-            )
-            if (!process.waitFor(8, TimeUnit.SECONDS)) {
-                process.destroyForcibly()
-                return "UNKNOWN|timeout|Telephony state read timed out"
-            }
-            val output = process.inputStream.bufferedReader().use { it.readText() }
-            val error = process.errorStream.bufferedReader().use { it.readText() }.trim()
-            if (process.exitValue() != 0) {
-                return "UNKNOWN|exit=" + process.exitValue() + "|" + error.take(180)
+            val result = runCommand(
+                arrayOf("/system/bin/sh", "-c", "dumpsys telephony.registry"),
+                8
+            ) ?: return "UNKNOWN|timeout|Telephony state read timed out"
+
+            if (result.exitCode != 0) {
+                return "UNKNOWN|exit=" + result.exitCode + "|" + result.output.take(180)
             }
             val states = Regex("mIsDataEnabled\\s*=\\s*(true|false)", RegexOption.IGNORE_CASE)
-                .findAll(output)
+                .findAll(result.output)
                 .map { it.groupValues[1].equals("true", ignoreCase = true) }
                 .toSet()
             when (states.size) {
@@ -60,7 +79,8 @@ class MobileDataUserService : IDataAutomationService.Stub() {
                 else -> "UNKNOWN|ambiguous|SIM data states disagree; refusing to guess"
             }
         } catch (t: Throwable) {
-            "UNKNOWN|" + t.javaClass.simpleName + "|" + (t.message ?: "state read failed").take(180)
+            "UNKNOWN|" + t.javaClass.simpleName + "|" +
+                (t.message ?: "state read failed").take(180)
         }
     }
 }
