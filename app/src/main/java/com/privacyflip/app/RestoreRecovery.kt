@@ -20,7 +20,7 @@ object RestoreRecovery {
         val prefs = app.getSharedPreferences("privacy_flip", Context.MODE_PRIVATE)
         val log: (String) -> Unit = { message ->
             val old = prefs.getString("logs", "") ?: ""
-            prefs.edit().putString("logs", "Recovery ($source): $message\\n$old".take(6000)).apply()
+            prefs.edit().putString("logs", "Recovery ($source): $message\n$old".take(6000)).apply()
         }
 
         pairedOptions.forEach { option ->
