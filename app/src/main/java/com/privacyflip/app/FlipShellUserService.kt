@@ -17,6 +17,7 @@ class FlipShellUserService : IPrivacyFlipShell.Stub() {
             "wifi" -> "settings get global wifi_on"
             "bluetooth" -> "settings get global bluetooth_on"
             "location" -> "settings get secure location_mode"
+            "nfc" -> "settings get global nfc_on"
             else -> return "UNKNOWN|Unsupported state query."
         }
         return try {
@@ -165,6 +166,7 @@ class FlipShellUserService : IPrivacyFlipShell.Stub() {
             "wifi" -> "svc wifi " + if (enabled) "enable" else "disable"
             "bluetooth" -> "svc bluetooth " + if (enabled) "enable" else "disable"
             "location" -> "cmd location set-location-enabled " + enabled + " --user current"
+            "nfc" -> "svc nfc " + (if (enabled) "enable" else "disable")
             "camera_privacy" -> {
                 if (Build.VERSION.SDK_INT < 31) return "ERROR: Camera sensor privacy needs Android 12 or newer."
                 "cmd sensor_privacy " + (if (enabled) "enable" else "disable") + " $(am get-current-user) camera"
