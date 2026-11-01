@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.NetworkCell
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import org.json.JSONArray
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -54,6 +55,10 @@ fun HomeAutomationControls(
     var refresh by remember { mutableIntStateOf(0) }
     var lockDelay by remember { mutableFloatStateOf(prefs.getInt("privacy_flip_delay_lock_seconds", 10).toFloat()) }
     var unlockDelay by remember { mutableFloatStateOf(prefs.getInt("privacy_flip_delay_unlock_seconds", 1).toFloat()) }
+
+    LaunchedEffect(Unit) {
+        if (migrateLegacyHomeActions(prefs)) refresh++
+    }
 
     fun saveToggle(feature: HomeFeature, suffix: String, checked: Boolean) {
         prefs.edit().putBoolean("home_${feature.key}_${suffix}", checked).apply()
@@ -189,6 +194,58 @@ private fun HomeSwitchRow(label: String, checked: Boolean, onChange: (Boolean) -
         Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
         Switch(checked = checked, onCheckedChange = onChange)
     }
+}
+
+/**
+ * One-time upgrade for existing multi-action rules. Move legacy automatic
+ * feature selections to the direct Home switches, then disable the old
+ * automatic-only rule so it cannot execute a duplicate immediate action.
+ */
+private fun migrateLegacyHomeActions(prefs: android.content.SharedPreferences): Boolean {
+    if (prefs.getBoolean("home_controls_migrated_v1", false)) return false
+    val raw = prefs.getString("rules", null)
+    val rules = try {
+        if (raw.isNullOrBlank()) JSONArray() else JSONArray(raw)
+    } catch (_: Exception) {
+        return false
+    }
+    val actionMap = mapOf(
+        "Auto: Mobile data OFF on lock / ON on unlock" to "mobile_data",
+        "Auto: Wi-Fi OFF on lock / ON on unlock" to "wifi",
+        "Auto: Bluetooth OFF on lock / ON on unlock" to "bluetooth",
+        "Auto: Location OFF on lock / ON on unlock" to "location",
+        "Auto: NFC OFF on lock / ON on unlock" to "nfc",
+        "Auto: Camera privacy ON on lock / OFF on unlock" to "camera_privacy",
+        "Auto: Microphone privacy ON on lock / OFF on unlock" to "microphone_privacy"
+    )
+    val migratedRules = JSONArray()
+    var migratedAny = false
+    for (index in 0 until rules.length()) {
+        val rule = rules.optJSONObject(index) ?: continue
+        val actions = rule.optString("action", "").split("|||").map { it.trim() }.filter { it.isNotEmpty() }
+        val automatic = actions.mapNotNull { actionMap[it] }.distinct()
+        if (automatic.isNotEmpty()) {
+            automatic.forEach { option ->
+                prefs.edit()
+                    .putBoolean("home_${option}_disable_on_lock", true)
+                    .putBoolean("home_${option}_enable_on_unlock", true)
+                    .apply()
+            }
+            val remaining = actions.filterNot { actionMap.containsKey(it) }
+            if (remaining.isEmpty()) {
+                rule.put("action", "Log only (no system change)")
+                rule.put("enabled", false)
+            } else {
+                rule.put("action", remaining.joinToString("|||"))
+            }
+            migratedAny = true
+        }
+        migratedRules.put(rule)
+    }
+    val editor = prefs.edit().putBoolean("home_controls_migrated_v1", true)
+    if (migratedAny) editor.putString("rules", migratedRules.toString())
+    editor.apply()
+    return migratedAny
 }
 
 private fun ensureMonitor(context: Context, prefs: android.content.SharedPreferences) {
