@@ -466,7 +466,7 @@ private fun RuleCard(rule: FlipRule, onToggle: (Boolean) -> Unit, onRun: () -> U
             ) {
                 Text(
                     when {
-                        rule.action.startsWith("Auto:") -> "Requires Shizuku; applies this system control on lock/unlock"
+                        rule.action.startsWith("Auto:") -> "Uses Root first, then Shizuku, for lock/unlock system control"
                         rule.action.equals("Toggle Do Not Disturb", ignoreCase = true) -> "Uses Android Do Not Disturb access"
                         else -> "Opens Android controls; confirm changes there"
                     },
@@ -568,12 +568,12 @@ private fun SetupWizardDialog(onOpenSettings: () -> Unit, onFinish: () -> Unit) 
                         Text("Lock par privacy rules, unlock par normal mode. Start with features that work without Shizuku.")
                         SetupWizardItem("1", "Create your rules", "Choose what Privacy Flip should do when your phone locks or unlocks.")
                         SetupWizardItem("2", "Enable screen monitoring", "Allow the ongoing notification so Android can keep the screen-event monitor running.")
-                        SetupWizardItem("3", "Optional advanced access", "Device Admin is only for the Lock screen now action. Shizuku is optional and only needed for restricted advanced automation.")
+                        SetupWizardItem("3", "Optional advanced access", "Device Admin is only for the Lock screen now action. Root is used when available; otherwise Shizuku can provide restricted system automation.")
                     }
                     1 -> {
                         Text("Recommended setup")
                         SetupWizardItem("✓", "Start without Shizuku", "Rules, activity history, backups, settings shortcuts and supported Device Admin screen locking work without Shizuku.")
-                        SetupWizardItem("!", "Know the limits", "A normal app cannot directly toggle Mobile Data on every Android device. Use the optional advanced setup only if you need supported restricted actions.")
+                        SetupWizardItem("!", "Know the limits", "Without Root or Shizuku, Android restricts automatic changes to protected system toggles. Supported Settings shortcuts remain available.")
                         SetupWizardItem("→", "Keep control", "You choose each permission. Privacy Flip does not silently grant itself access.")
                     }
                     else -> {
@@ -822,7 +822,7 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
                         modifier = Modifier.fillMaxWidth()
                     ) { Text(if (monitoring) "Stop screen monitoring" else "Start screen monitoring") }
                     Text(
-                        "Android may stop background services under battery restrictions. All Auto: lock/unlock controls use Shizuku; ordinary settings shortcuts only open Android controls. Each automatic action still needs device-level verification.",
+                        "Android may stop background services under battery restrictions. Automatic Home controls try Root first, then Shizuku. Without either, protected toggles cannot be changed automatically by a normal app. Each automatic action still needs device-level verification.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error
                     )
@@ -909,11 +909,11 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
                 Column(Modifier.padding(16.dp)) {
                     Text("Developer diagnostics", fontWeight = FontWeight.Bold)
                     Text("Storage: SharedPreferences · Network access: none · Minimum Android: 8.0 (API 26)", style = MaterialTheme.typography.bodySmall)
-                    Text("Mobile Data Lock/Unlock uses the optional Shizuku shell bridge. Other system actions still depend on Android restrictions and device testing.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    Text("Automatic system actions use Root first and Shizuku second; without either, protected controls fall back to manual Android Settings. Device/OEM testing is required.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 }
             }
         }
-        item { Text("Privacy Flip 0.3.0 · Offline-first", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        item { Text("Privacy Flip 0.4.0 · Offline-first", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
 
@@ -967,7 +967,7 @@ private fun PermissionStatusCard() {
                 "Only required for the explicit Lock screen now action.", adminEnabled)
             PermissionStatusRow("Shizuku", if (shizukuGranted) "Connected · permission granted" else "Optional · unavailable",
                 shizukuStatus, shizukuGranted)
-            Text("Mobile Data automation requires Shizuku on standard Android builds; Device Admin does not provide this access.",
+            Text("Root is attempted first; Shizuku is the fallback for protected system controls. Device Admin does not provide this access.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -1058,7 +1058,7 @@ private fun AppDetailsCard() {
                     AppDetailLine("Network", "No INTERNET permission declared")
                     AppDetailLine("Declared permissions", "Notifications for monitoring (Android 13+), foreground service, run-after-boot receiver; optional Device Admin for screen lock. Shizuku access is separately approved by the user.")
                     AppDetailLine("Works without Shizuku", "Rules, history, JSON backup, theme, Android settings shortcuts, Device Admin screen lock, and Do Not Disturb after its special access is granted")
-                    AppDetailLine("Advanced automation", "Mobile Data, Wi-Fi, Bluetooth, Location and sensor privacy lock/unlock actions currently use optional Shizuku access and need device-level testing")
+                    AppDetailLine("Advanced automation", "Root is attempted first, then the explicitly authorized Shizuku shell for Mobile Data, Wi-Fi, Bluetooth, Location, NFC and sensor privacy. Device testing is still required.")
                     AppDetailLine("Permission principle", "Privacy Flip does not silently grant itself permissions. Android opens system settings when user approval is needed.")
                     AppDetailLine("Important limitation", "Device Admin does not grant full system access and cannot by itself toggle Mobile Data on modern Android.")
                     AppDetailLine("Source code", "github.com/subhashbhagdiya-alt/PrivacyFlip-Android")
@@ -1107,7 +1107,7 @@ private fun ShizukuSetupCard() {
     Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Shizuku system access", fontWeight = FontWeight.Bold)
-            Text("Optional local-only Shizuku bridge for automatic lock and unlock controls. On Android 11+, start Shizuku using Wireless Debugging; after reboot, Shizuku may need to be started again.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Optional local-only bridge. Privacy Flip tries Root first and then Shizuku. On Android 11+, start Shizuku using Wireless Debugging; after reboot, Shizuku may need to be started again.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(status, style = MaterialTheme.typography.bodyMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = {
