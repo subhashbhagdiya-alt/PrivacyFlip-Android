@@ -9,7 +9,7 @@ import android.content.Context
  */
 object RestoreRecovery {
     private val pairedOptions = listOf(
-        "wifi", "bluetooth", "location", "camera_privacy", "microphone_privacy"
+        "wifi", "bluetooth", "location", "nfc", "camera_privacy", "microphone_privacy"
     )
 
     fun recoverIfUnlocked(context: Context, source: String) {
