@@ -186,6 +186,10 @@ class ScreenMonitorService : Service() {
         val isLock = trigger == "Screen turns OFF"
         val existing = if (isLock) pendingHomeLock else pendingHomeUnlock
         existing?.let { actionHandler.removeCallbacks(it) }
+        if (isLock) {
+            pendingHomeUnlock?.let { actionHandler.removeCallbacks(it) }
+            pendingHomeUnlock = null
+        }
         val delaySeconds = prefs.getInt(
             if (isLock) "privacy_flip_delay_lock_seconds" else "privacy_flip_delay_unlock_seconds",
             if (isLock) 10 else 1
