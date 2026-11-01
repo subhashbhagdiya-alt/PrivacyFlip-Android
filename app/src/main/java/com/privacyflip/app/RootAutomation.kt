@@ -31,7 +31,8 @@ object RootAutomation {
         result.exitCode == 0 && Regex("""uid=0\b""").containsMatchIn(result.output)
     }.getOrDefault(false)
 
-    private fun readRootState(option: String): String {\n        return try {
+    private fun readRootState(option: String): String {
+        return try {
         if (option == "mobile_data") {
             val result = runSu("dumpsys telephony.registry", 8)
                 ?: return "UNKNOWN|Root telephony query timed out"
