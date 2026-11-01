@@ -24,11 +24,17 @@ object RestoreRecovery {
         }
 
         pairedOptions.forEach { option ->
-            if (prefs.getBoolean("paired_restore_" + option + "_owned", false)) {
+            val owned = prefs.getBoolean("paired_restore_" + option + "_owned", false)
+            val owner = prefs.getString("paired_restore_" + option + "_rule", null)
+            val homeRestoreEnabled = prefs.getBoolean("home_${option}_enable_on_unlock", false)
+            if (owned && (owner != "Home controls" || homeRestoreEnabled)) {
                 PairedFeatureRestoreController.onUnlock(app, option, log)
             }
         }
-        if (prefs.getBoolean("mobile_data_restore_owned", false)) {
+        val mobileOwned = prefs.getBoolean("mobile_data_restore_owned", false)
+        val mobileOwner = prefs.getString("mobile_data_restore_rule", null)
+        val homeMobileRestoreEnabled = prefs.getBoolean("home_mobile_data_enable_on_unlock", false)
+        if (mobileOwned && (mobileOwner != "Home controls" || homeMobileRestoreEnabled)) {
             MobileDataRestoreController.onUnlock(app, log)
         }
     }
