@@ -10,12 +10,17 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.IBinder
 import org.json.JSONArray
 import org.json.JSONObject
 
 class ScreenMonitorService : Service() {
     private var receiver: BroadcastReceiver? = null
+    private val actionHandler = Handler(Looper.getMainLooper())
+    private var pendingHomeLock: Runnable? = null
+    private var pendingHomeUnlock: Runnable? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -60,6 +65,17 @@ class ScreenMonitorService : Service() {
                 val prefs = getSharedPreferences("privacy_flip", Context.MODE_PRIVATE)
                 if (prefs.getBoolean("paused", false)) return
 
+                // Home-screen controls run with their own configurable delays.
+                // A quick unlock cancels a lock action that has not fired yet.
+                when (trigger) {
+                    "Screen turns OFF" -> scheduleHomeActions(trigger, prefs)
+                    "Phone unlocked" -> {
+                        pendingHomeLock?.let { actionHandler.removeCallbacks(it) }
+                        pendingHomeLock = null
+                        scheduleHomeActions(trigger, prefs)
+                    }
+                }
+
                 runCatching {
                     val raw = prefs.getString("rules", "[]") ?: "[]"
                     val array = JSONArray(raw)
@@ -76,8 +92,13 @@ class ScreenMonitorService : Service() {
                         // New multi-feature rules store paired actions separated by |||.
                         // Older single-action rules remain fully compatible.
                         val actions = action.split("|||").map { it.trim() }.filter { it.isNotEmpty() }
-                        val pairedOptions = actions.mapNotNull { pairedOption(it) }.distinct()
-                        val pairedAction = pairedOptions.isNotEmpty() || actions.any { it.equals("Toggle Do Not Disturb", ignoreCase = true) }
+                        val allPairedOptions = actions.mapNotNull { pairedOption(it) }.distinct()
+                        val pairedOptions = allPairedOptions.filterNot { option ->
+                            prefs.getBoolean("home_${option}_disable_on_lock", false) ||
+                                prefs.getBoolean("home_${option}_enable_on_unlock", false)
+                        }
+                        val pairedAction = allPairedOptions.isNotEmpty() ||
+                            actions.any { it.equals("Toggle Do Not Disturb", ignoreCase = true) }
                         val lockUnlockTrigger = trigger == "Screen turns OFF" || trigger == "Phone unlocked"
                         val savedLockUnlockTrigger = savedTrigger == "Screen turns OFF" ||
                             savedTrigger == "Phone locks / screen turns OFF" ||
@@ -117,6 +138,8 @@ class ScreenMonitorService : Service() {
                                     }
                                 }
                                 messages.add("$trigger · $name: requested ${pairedOptions.size} automatic feature(s).")
+                            } else if (allPairedOptions.isNotEmpty()) {
+                                messages.add("$trigger · $name: selected feature(s) are controlled from the Home screen.")
                             } else if (actions.any { it.equals("Toggle Do Not Disturb", ignoreCase = true) } && lockUnlockTrigger) {
                                 val targetAction = if (trigger == "Screen turns OFF") "Enable Do Not Disturb" else "Disable Do Not Disturb"
                                 if (!applyDoNotDisturb(targetAction)) {
@@ -159,6 +182,54 @@ class ScreenMonitorService : Service() {
         }
     }
 
+    private fun scheduleHomeActions(trigger: String, prefs: android.content.SharedPreferences) {
+        val isLock = trigger == "Screen turns OFF"
+        val existing = if (isLock) pendingHomeLock else pendingHomeUnlock
+        existing?.let { actionHandler.removeCallbacks(it) }
+        val delaySeconds = prefs.getInt(
+            if (isLock) "privacy_flip_delay_lock_seconds" else "privacy_flip_delay_unlock_seconds",
+            if (isLock) 10 else 1
+        ).coerceIn(0, 300)
+        val task = Runnable {
+            if (prefs.getBoolean("paused", false)) return@Runnable
+            runConfiguredHomeActions(trigger, prefs)
+        }
+        if (isLock) {
+            pendingHomeLock = task
+        } else {
+            pendingHomeUnlock = task
+        }
+        actionHandler.postDelayed(task, delaySeconds * 1_000L)
+    }
+
+    private fun runConfiguredHomeActions(trigger: String, prefs: android.content.SharedPreferences) {
+        val options = listOf(
+            "mobile_data", "wifi", "bluetooth", "location", "nfc",
+            "camera_privacy", "microphone_privacy"
+        )
+        val isLock = trigger == "Screen turns OFF"
+        options.forEach { option ->
+            val key = if (isLock) "home_${option}_disable_on_lock" else "home_${option}_enable_on_unlock"
+            if (!prefs.getBoolean(key, false)) return@forEach
+            val logAction: (String) -> Unit = { message ->
+                appendLog(prefs, "$trigger · Home controls · $option: $message")
+            }
+            if (option == "mobile_data") {
+                if (isLock) MobileDataRestoreController.onLock(this, "Home controls", logAction)
+                else MobileDataRestoreController.onUnlock(this, logAction)
+            } else {
+                val privacyTarget = option == "camera_privacy" || option == "microphone_privacy"
+                if (isLock) {
+                    PairedFeatureRestoreController.onLock(
+                        this, option, "Home controls", privacyTarget, logAction
+                    )
+                } else {
+                    PairedFeatureRestoreController.onUnlock(this, option, logAction)
+                }
+            }
+        }
+    }
+
     private fun recordMobileDataResult(ruleName: String, enabled: Boolean, result: String) {
         val success = result.startsWith("OK|")
         val requested = if (enabled) "ON" else "OFF"
@@ -194,6 +265,7 @@ class ScreenMonitorService : Service() {
         "Auto: Wi-Fi OFF on lock / ON on unlock" -> "wifi"
         "Auto: Bluetooth OFF on lock / ON on unlock" -> "bluetooth"
         "Auto: Location OFF on lock / ON on unlock" -> "location"
+        "Auto: NFC OFF on lock / ON on unlock" -> "nfc"
         "Auto: Camera privacy ON on lock / OFF on unlock" -> "camera_privacy"
         "Auto: Microphone privacy ON on lock / OFF on unlock" -> "microphone_privacy"
         else -> null
@@ -271,6 +343,10 @@ class ScreenMonitorService : Service() {
     }
 
     override fun onDestroy() {
+        pendingHomeLock?.let { actionHandler.removeCallbacks(it) }
+        pendingHomeUnlock?.let { actionHandler.removeCallbacks(it) }
+        pendingHomeLock = null
+        pendingHomeUnlock = null
         receiver?.let { runCatching { unregisterReceiver(it) } }
         receiver = null
         getSharedPreferences("privacy_flip", Context.MODE_PRIVATE).edit()
