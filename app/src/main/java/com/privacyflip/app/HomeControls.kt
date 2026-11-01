@@ -1,0 +1,206 @@
+package com.privacyflip.app
+
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.widget.Toast
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Nfc
+import androidx.compose.material.icons.filled.NetworkCell
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
+
+private data class HomeFeature(
+    val key: String,
+    val title: String,
+    val description: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val privacyDirection: Boolean = false
+)
+
+@Composable
+fun HomeAutomationControls(
+    modifier: Modifier,
+    prefs: android.content.SharedPreferences,
+    paused: Boolean,
+    onPause: (Boolean) -> Unit
+) {
+    val context = LocalContext.current
+    val features = remember {
+        listOf(
+            HomeFeature("mobile_data", "Mobile Data", "Disable mobile data while the phone is locked", Icons.Default.NetworkCell),
+            HomeFeature("wifi", "Wi-Fi", "Turn Wi-Fi off while locked", Icons.Default.Wifi),
+            HomeFeature("bluetooth", "Bluetooth", "Turn Bluetooth off while locked", Icons.Default.Bluetooth),
+            HomeFeature("location", "Location", "Turn location off while locked", Icons.Default.LocationOn),
+            HomeFeature("nfc", "NFC", "Turn NFC off while locked (device support may vary)", Icons.Default.Nfc),
+            HomeFeature("camera_privacy", "Camera", "Enable camera privacy while locked", Icons.Default.CameraAlt, true),
+            HomeFeature("microphone_privacy", "Microphone", "Enable microphone privacy while locked", Icons.Default.Mic, true)
+        )
+    }
+    var refresh by remember { mutableIntStateOf(0) }
+    var lockDelay by remember { mutableFloatStateOf(prefs.getInt("privacy_flip_delay_lock_seconds", 10).toFloat()) }
+    var unlockDelay by remember { mutableFloatStateOf(prefs.getInt("privacy_flip_delay_unlock_seconds", 1).toFloat()) }
+
+    fun saveToggle(feature: HomeFeature, suffix: String, checked: Boolean) {
+        prefs.edit().putBoolean("home_${feature.key}_${suffix}", checked).apply()
+        refresh++
+        if (checked) ensureMonitor(context, prefs)
+    }
+
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Surface(
+                shape = RoundedCornerShape(22.dp),
+                color = if (paused) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = .14f)) {
+                        Icon(Icons.Default.Wifi, null, Modifier.padding(12.dp), tint = MaterialTheme.colorScheme.primary)
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("Privacy Flip", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(if (paused) "Protection Paused" else "Protection Active", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    Switch(checked = !paused, onCheckedChange = { active ->
+                        onPause(!active)
+                        if (active) ensureMonitor(context, prefs)
+                    })
+                }
+            }
+        }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Screen Lock/Unlock Actions", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Choose each feature separately. Your original state is restored only when Privacy Flip has safely recorded its own change.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        item {
+            Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                    features.forEachIndexed { index, feature ->
+                        val disableOnLock = remember(refresh) {
+                            prefs.getBoolean("home_${feature.key}_disable_on_lock", false)
+                        }
+                        val enableOnUnlock = remember(refresh) {
+                            prefs.getBoolean("home_${feature.key}_enable_on_unlock", false)
+                        }
+                        Column(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Icon(feature.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                Column(Modifier.weight(1f)) {
+                                    Text(feature.title, fontWeight = FontWeight.Bold)
+                                    Text(feature.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                            HomeSwitchRow("Disable on lock", disableOnLock) {
+                                saveToggle(feature, "disable_on_lock", it)
+                            }
+                            HomeSwitchRow("Enable on unlock", enableOnUnlock) {
+                                saveToggle(feature, "enable_on_unlock", it)
+                            }
+                            if (feature.privacyDirection) {
+                                Text("Camera/Microphone privacy is switched ON while locked and returned OFF only when the saved original state was OFF.",
+                                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        if (index != features.lastIndex) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    }
+                }
+            }
+        }
+        item {
+            Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Delays", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("Configure timing for privacy actions", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Delay after Lock (sec)", modifier = Modifier.weight(1f))
+                            Text("${lockDelay.roundToInt()}s", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        }
+                        Slider(
+                            value = lockDelay,
+                            onValueChange = { lockDelay = it },
+                            onValueChangeFinished = { prefs.edit().putInt("privacy_flip_delay_lock_seconds", lockDelay.roundToInt()).apply() },
+                            valueRange = 0f..300f
+                        )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("0s", style = MaterialTheme.typography.labelSmall)
+                            Text("1m", style = MaterialTheme.typography.labelSmall)
+                            Text("2m", style = MaterialTheme.typography.labelSmall)
+                            Text("5m", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Delay after Unlock (sec)", modifier = Modifier.weight(1f))
+                            Text("${unlockDelay.roundToInt()}s", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        }
+                        Slider(
+                            value = unlockDelay,
+                            onValueChange = { unlockDelay = it },
+                            onValueChangeFinished = { prefs.edit().putInt("privacy_flip_delay_unlock_seconds", unlockDelay.roundToInt()).apply() },
+                            valueRange = 0f..300f
+                        )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("0s", style = MaterialTheme.typography.labelSmall)
+                            Text("1m", style = MaterialTheme.typography.labelSmall)
+                            Text("2m", style = MaterialTheme.typography.labelSmall)
+                            Text("5m", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            Text("Automatic system toggles require Root or Shizuku on standard Android builds. Without either, Android may only allow opening the related Settings page; blocked changes are logged and never reported as successful.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun HomeSwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Switch(checked = checked, onCheckedChange = onChange)
+    }
+}
+
+private fun ensureMonitor(context: Context, prefs: android.content.SharedPreferences) {
+    if (prefs.getBoolean("screen_monitor_enabled", false) &&
+        prefs.getBoolean("monitor_service_running", false)
+    ) return
+    runCatching {
+        val intent = Intent(context, ScreenMonitorService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
+        else context.startService(intent)
+        prefs.edit().putBoolean("screen_monitor_enabled", true).apply()
+    }.onFailure {
+        Toast.makeText(context, "Could not start screen monitoring: ${it.message ?: "unknown error"}", Toast.LENGTH_LONG).show()
+    }
+}
