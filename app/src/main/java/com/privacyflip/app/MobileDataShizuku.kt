@@ -89,7 +89,7 @@ object MobileDataShizuku {
 
     fun setMobileDataEnabled(context: Context, enabled: Boolean, callback: (String) -> Unit) {
         RootAutomation.apply(context, "mobile_data", enabled) { rootResult ->
-            if (rootResult != null) callback(rootResult)
+            if (rootResult != null && !rootResult.startsWith("ERROR|")) callback(rootResult)
             else setMobileDataEnabledViaShizuku(context, enabled, callback)
         }
     }
@@ -136,7 +136,7 @@ object MobileDataShizuku {
     /** Reads the current data state. UNKNOWN is deliberately not converted to ON or OFF. */
     fun getMobileDataState(context: Context, callback: (String) -> Unit) {
         RootAutomation.readState(context, "mobile_data") { rootState ->
-            if (rootState != null) callback(rootState)
+            if (rootState != null && !rootState.startsWith("UNKNOWN|")) callback(rootState)
             else getMobileDataStateViaShizuku(context, callback)
         }
     }
