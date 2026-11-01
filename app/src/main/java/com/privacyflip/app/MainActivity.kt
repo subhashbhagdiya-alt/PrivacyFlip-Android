@@ -128,10 +128,8 @@ private fun PrivacyFlipApp(prefs: android.content.SharedPreferences) {
             }
         ) { padding ->
             when (screen) {
-                Screen.HOME -> HomeScreen(Modifier.padding(padding), rules, paused,
-                    onPause = { paused = it; saveAll(); log(if (it) "Master Pause enabled" else "Master Pause disabled") },
-                    onOpenRules = { screen = Screen.AUTOMATIONS },
-                    onRun = { rule -> runRule(context, rule, rules, paused, ::saveAll, ::log) })
+                Screen.HOME -> HomeScreen(Modifier.padding(padding), prefs, paused,
+                    onPause = { paused = it; saveAll(); log(if (it) "Master Pause enabled" else "Protection active") })
                 Screen.AUTOMATIONS -> RulesScreen(Modifier.padding(padding), rules, { showAdd = true },
                     { rule, enabled ->
                         val i = rules.indexOfFirst { it.id == rule.id }
@@ -356,72 +354,13 @@ private fun runRule(context: Context, rule: FlipRule, rules: MutableList<FlipRul
 }
 
 @Composable
-private fun HomeScreen(modifier: Modifier, rules: List<FlipRule>, paused: Boolean,
-    onPause: (Boolean) -> Unit, onOpenRules: () -> Unit, onRun: (FlipRule) -> Unit) {
-    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        item {
-            Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary.copy(alpha = .13f)) {
-                            Icon(Icons.Default.Lock, null, Modifier.padding(12.dp), tint = MaterialTheme.colorScheme.primary)
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(if (paused) "Automations paused" else "You're in control", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                            Text(if (paused) "No rules will run until resumed." else "Your rules stay on this device.", style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Master Pause", Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
-                        Switch(checked = paused, onCheckedChange = onPause)
-                    }
-                }
-            }
-        }
-        item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatCard("Total", rules.size.toString(), Modifier.weight(1f))
-            StatCard("Enabled", rules.count { it.enabled }.toString(), Modifier.weight(1f))
-            StatCard("Disabled", rules.count { !it.enabled }.toString(), Modifier.weight(1f))
-        } }
-        item { Surface(
-            shape = RoundedCornerShape(18.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Rule health", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                val enabledCount = rules.count { it.enabled }
-                val disabledCount = rules.size - enabledCount
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Enabled", modifier = Modifier.weight(1f))
-                    Text(enabledCount.toString(), fontWeight = FontWeight.SemiBold)
-                }
-                LinearProgressIndicator(
-                    progress = { if (rules.isEmpty()) 0f else enabledCount.toFloat() / rules.size.toFloat() },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Disabled", modifier = Modifier.weight(1f))
-                    Text(disabledCount.toString(), fontWeight = FontWeight.SemiBold)
-                }
-                Text(
-                    if (rules.isEmpty()) "Create a rule to see your rule status summary."
-                    else if (paused) "Master Pause is on. Rule status is shown, but actions are paused."
-                    else "Rules open Android controls where supported; system changes may need confirmation.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        } }
-        item { Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Quick rules", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            TextButton(onClick = onOpenRules) { Text("View all") }
-        } }
-        if (rules.isEmpty()) item { EmptyState("No rules yet", "Create a rule to organize your privacy routines.") }
-        items(rules.take(3), key = { it.id }) { rule -> RuleCard(rule, {}, { onRun(rule) }, showToggle = false) }
-        item { Text("Android controls are managed by the system. Some settings cannot be changed automatically by third-party apps.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-    }
+private fun HomeScreen(
+    modifier: Modifier,
+    prefs: android.content.SharedPreferences,
+    paused: Boolean,
+    onPause: (Boolean) -> Unit
+) {
+    HomeAutomationControls(modifier, prefs, paused, onPause)
 }
 
 @Composable
@@ -1254,6 +1193,7 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
                     "Auto: Wi-Fi OFF on lock / ON on unlock",
                     "Auto: Bluetooth OFF on lock / ON on unlock",
                     "Auto: Location OFF on lock / ON on unlock",
+                    "Auto: NFC OFF on lock / ON on unlock",
                     "Auto: Camera privacy ON on lock / OFF on unlock",
                     "Auto: Microphone privacy ON on lock / OFF on unlock"
                 )
