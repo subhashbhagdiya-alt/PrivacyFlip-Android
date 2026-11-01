@@ -26,10 +26,10 @@ object RootAutomation {
         }
     }
 
-    private fun hasRootAccess(): Boolean {
-        val result = runSu("id", 8) ?: return false
-        return result.exitCode == 0 && Regex("""uid=0\b""").containsMatchIn(result.output)
-    }
+    private fun hasRootAccess(): Boolean = runCatching {
+        val result = runSu("id", 8) ?: return@runCatching false
+        result.exitCode == 0 && Regex("""uid=0\b""").containsMatchIn(result.output)
+    }.getOrDefault(false)
 
     private fun readRootState(option: String): String {\n        return try {
         if (option == "mobile_data") {
