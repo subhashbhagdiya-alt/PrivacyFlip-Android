@@ -57,7 +57,10 @@ private enum class Screen { HOME, AUTOMATIONS, LOGS, SETTINGS }
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { PrivacyFlipApp(getSharedPreferences("privacy_flip", Context.MODE_PRIVATE)) }
+        val prefs = getSharedPreferences("privacy_flip", Context.MODE_PRIVATE)
+        // Upgrade older automatic rules before the in-memory rules list is loaded.
+        migrateLegacyHomeActions(prefs)
+        setContent { PrivacyFlipApp(prefs) }
     }
 }
 
