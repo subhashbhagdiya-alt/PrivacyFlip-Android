@@ -155,6 +155,6 @@ object PairedFeatureRestoreController {
     }
 
     private val supportedOptions = setOf(
-        "wifi", "bluetooth", "location", "camera_privacy", "microphone_privacy"
+        "wifi", "bluetooth", "location", "nfc", "camera_privacy", "microphone_privacy"
     )
 }
