@@ -58,6 +58,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val prefs = getSharedPreferences("privacy_flip", Context.MODE_PRIVATE)
+        // Recover only settings that Privacy Flip previously changed itself.
+        RestoreRecovery.recoverIfUnlocked(this, "app launch")
         // Upgrade older automatic rules before the in-memory rules list is loaded.
         migrateLegacyHomeActions(prefs)
         setContent { PrivacyFlipApp(prefs) }
