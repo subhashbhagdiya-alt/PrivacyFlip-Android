@@ -25,6 +25,13 @@ object ShizukuAutomation {
     }.getOrDefault(false)
 
     fun readState(context: Context, option: String, callback: (String) -> Unit) {
+        RootAutomation.readState(context, option) { rootState ->
+            if (rootState != null) callback(rootState)
+            else readStateViaShizuku(context, option, callback)
+        }
+    }
+
+    private fun readStateViaShizuku(context: Context, option: String, callback: (String) -> Unit) {
         val appContext = context.applicationContext
         if (!isBinderRunning()) { callback("UNKNOWN|Shizuku is not running."); return }
         if (!hasPermission()) { callback("UNKNOWN|Privacy Flip Shizuku permission is missing."); return }
@@ -60,6 +67,13 @@ object ShizukuAutomation {
     }
 
     fun apply(context: Context, option: String, enabled: Boolean, callback: (String) -> Unit) {
+        RootAutomation.apply(context, option, enabled) { rootResult ->
+            if (rootResult != null) callback(rootResult)
+            else applyViaShizuku(context, option, enabled, callback)
+        }
+    }
+
+    private fun applyViaShizuku(context: Context, option: String, enabled: Boolean, callback: (String) -> Unit) {
         val appContext = context.applicationContext
         if (!isBinderRunning()) {
             callback("ERROR: Shizuku is not running. Start it, then retry.")
