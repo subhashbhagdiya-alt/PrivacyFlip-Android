@@ -56,10 +56,6 @@ fun HomeAutomationControls(
     var lockDelay by remember { mutableFloatStateOf(prefs.getInt("privacy_flip_delay_lock_seconds", 10).toFloat()) }
     var unlockDelay by remember { mutableFloatStateOf(prefs.getInt("privacy_flip_delay_unlock_seconds", 1).toFloat()) }
 
-    LaunchedEffect(Unit) {
-        if (migrateLegacyHomeActions(prefs)) refresh++
-    }
-
     fun saveToggle(feature: HomeFeature, suffix: String, checked: Boolean) {
         prefs.edit().putBoolean("home_${feature.key}_${suffix}", checked).apply()
         refresh++
@@ -201,7 +197,7 @@ private fun HomeSwitchRow(label: String, checked: Boolean, onChange: (Boolean) -
  * feature selections to the direct Home switches, then disable the old
  * automatic-only rule so it cannot execute a duplicate immediate action.
  */
-private fun migrateLegacyHomeActions(prefs: android.content.SharedPreferences): Boolean {
+internal fun migrateLegacyHomeActions(prefs: android.content.SharedPreferences): Boolean {
     if (prefs.getBoolean("home_controls_migrated_v1", false)) return false
     val raw = prefs.getString("rules", null)
     val rules = try {
