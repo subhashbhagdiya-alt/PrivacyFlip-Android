@@ -109,18 +109,31 @@ fun HomeAutomationControls(
                         val enableOnUnlock = remember(refresh) {
                             prefs.getBoolean("home_${feature.key}_enable_on_unlock", false)
                         }
+                        val featureAvailable = when (feature.key) {
+                            "nfc" -> context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_NFC)
+                            "camera_privacy", "microphone_privacy" -> Build.VERSION.SDK_INT >= 31
+                            else -> true
+                        }
                         Column(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Icon(feature.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                                 Column(Modifier.weight(1f)) {
                                     Text(feature.title, fontWeight = FontWeight.Bold)
-                                    Text(feature.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(
+                                        when {
+                                            !featureAvailable && feature.key == "nfc" -> "NFC hardware is not available on this device"
+                                            !featureAvailable -> "Requires Android 12 or newer"
+                                            else -> feature.description
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
                             }
-                            HomeSwitchRow("Disable on lock", disableOnLock) {
+                            HomeSwitchRow("Disable on lock", disableOnLock, featureAvailable) {
                                 saveToggle(feature, "disable_on_lock", it)
                             }
-                            HomeSwitchRow("Enable on unlock", enableOnUnlock) {
+                            HomeSwitchRow("Enable on unlock", enableOnUnlock, featureAvailable) {
                                 saveToggle(feature, "enable_on_unlock", it)
                             }
                             if (feature.privacyDirection) {
@@ -178,17 +191,22 @@ fun HomeAutomationControls(
             }
         }
         item {
-            Text("Automatic system toggles require Root or Shizuku on standard Android builds. Without either, Android may only allow opening the related Settings page; blocked changes are logged and never reported as successful.",
+            Text("Automatic system toggles try Root first and Shizuku second. Without either, Android blocks protected changes; those actions are skipped and logged, and you can change them manually in Android Settings.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
 @Composable
-private fun HomeSwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+private fun HomeSwitchRow(label: String, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        Switch(checked = checked, onCheckedChange = onChange)
+        Text(
+            label,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
     }
 }
 
