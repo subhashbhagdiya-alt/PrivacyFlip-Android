@@ -31,7 +31,7 @@ object RootAutomation {
         return result.exitCode == 0 && Regex("""uid=0\b""").containsMatchIn(result.output)
     }
 
-    private fun readRootState(option: String): String = try {
+    private fun readRootState(option: String): String {\n        return try {
         if (option == "mobile_data") {
             val result = runSu("dumpsys telephony.registry", 8)
                 ?: return "UNKNOWN|Root telephony query timed out"
@@ -62,8 +62,9 @@ object RootAutomation {
         val value = result.output.trim().toIntOrNull() ?: return "UNKNOWN|Android returned an unreadable state"
         val enabled = if (option == "location") value != 0 else value == 1
         if (enabled) "ENABLED" else "DISABLED"
-    } catch (t: Throwable) {
-        "UNKNOWN|" + (t.message ?: t.javaClass.simpleName)
+        } catch (t: Throwable) {
+            "UNKNOWN|" + (t.message ?: t.javaClass.simpleName)
+        }
     }
 
     private fun applyRootState(option: String, enabled: Boolean): String {
