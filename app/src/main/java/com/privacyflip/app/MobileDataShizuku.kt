@@ -88,6 +88,13 @@ object MobileDataShizuku {
     }
 
     fun setMobileDataEnabled(context: Context, enabled: Boolean, callback: (String) -> Unit) {
+        RootAutomation.apply(context, "mobile_data", enabled) { rootResult ->
+            if (rootResult != null) callback(rootResult)
+            else setMobileDataEnabledViaShizuku(context, enabled, callback)
+        }
+    }
+
+    private fun setMobileDataEnabledViaShizuku(context: Context, enabled: Boolean, callback: (String) -> Unit) {
         if (!Shizuku.pingBinder()) {
             callback("ERROR|Shizuku is not running. Start Shizuku after reboot and try again.")
             return
@@ -128,6 +135,13 @@ object MobileDataShizuku {
 
     /** Reads the current data state. UNKNOWN is deliberately not converted to ON or OFF. */
     fun getMobileDataState(context: Context, callback: (String) -> Unit) {
+        RootAutomation.readState(context, "mobile_data") { rootState ->
+            if (rootState != null) callback(rootState)
+            else getMobileDataStateViaShizuku(context, callback)
+        }
+    }
+
+    private fun getMobileDataStateViaShizuku(context: Context, callback: (String) -> Unit) {
         if (!Shizuku.pingBinder()) {
             callback("UNKNOWN|shizuku|Shizuku is not running")
             return
