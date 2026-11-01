@@ -26,7 +26,7 @@ object ShizukuAutomation {
 
     fun readState(context: Context, option: String, callback: (String) -> Unit) {
         RootAutomation.readState(context, option) { rootState ->
-            if (rootState != null) callback(rootState)
+            if (rootState != null && !rootState.startsWith("UNKNOWN|")) callback(rootState)
             else readStateViaShizuku(context, option, callback)
         }
     }
@@ -68,7 +68,7 @@ object ShizukuAutomation {
 
     fun apply(context: Context, option: String, enabled: Boolean, callback: (String) -> Unit) {
         RootAutomation.apply(context, option, enabled) { rootResult ->
-            if (rootResult != null) callback(rootResult)
+            if (rootResult != null && !rootResult.startsWith("ERROR|")) callback(rootResult)
             else applyViaShizuku(context, option, enabled, callback)
         }
     }
