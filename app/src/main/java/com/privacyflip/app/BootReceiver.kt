@@ -12,7 +12,8 @@ import org.json.JSONArray
 
 /**
  * Restores the opt-in screen monitor after reboot and records matching boot rules.
- * Rule actions remain demo-only; this receiver never changes Android system settings.
+ * Boot-trigger actions are notification-only; restore recovery may undo only
+ * settings previously changed and recorded by Privacy Flip.
  */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
