@@ -63,6 +63,14 @@ class ScreenMonitorService : Service() {
                     else -> return
                 }
                 val prefs = getSharedPreferences("privacy_flip", Context.MODE_PRIVATE)
+
+                // Unlock is also the recovery boundary: restore only values that
+                // Privacy Flip previously changed, even while Master Pause is enabled
+                // or the originating rule has since been disabled/deleted.
+                if (trigger == "Phone unlocked") {
+                    RestoreRecovery.recoverIfUnlocked(this@ScreenMonitorService, "phone unlock")
+                }
+                // Master Pause blocks new lock-side automation, never safety restoration.
                 if (prefs.getBoolean("paused", false)) return
 
                 // Home-screen controls run with their own configurable delays.
@@ -115,27 +123,21 @@ class ScreenMonitorService : Service() {
 
                             if (pairedOptions.isNotEmpty()) {
                                 pairedOptions.forEach { option ->
-                                    if (option == "mobile_data") {
-                                        // Mobile data uses the verified restore ledger.
-                                        val logAction: (String) -> Unit = { message -> appendLog(prefs, "$trigger · $name: $message") }
-                                        if (trigger == "Screen turns OFF") {
-                                            MobileDataRestoreController.onLock(this@ScreenMonitorService, name, logAction)
-                                        } else {
-                                            MobileDataRestoreController.onUnlock(this@ScreenMonitorService, logAction)
-                                        }
-                                    } else {
+                                    if (trigger == "Screen turns OFF") {
                                         val logAction: (String) -> Unit = { message ->
                                             appendLog(prefs, "$trigger · $name: $message")
                                         }
-                                        val sensorPrivacy = option == "camera_privacy" || option == "microphone_privacy"
-                                        if (trigger == "Screen turns OFF") {
+                                        if (option == "mobile_data") {
+                                            MobileDataRestoreController.onLock(this@ScreenMonitorService, name, logAction)
+                                        } else {
+                                            val sensorPrivacy = option == "camera_privacy" || option == "microphone_privacy"
                                             PairedFeatureRestoreController.onLock(
                                                 this@ScreenMonitorService, option, name, sensorPrivacy, logAction
                                             )
-                                        } else {
-                                            PairedFeatureRestoreController.onUnlock(this@ScreenMonitorService, option, logAction)
                                         }
                                     }
+                                    // Phone-unlock restoration is centralized above so it
+                                    // cannot depend on a rule remaining enabled or present.
                                 }
                                 messages.add("$trigger · $name: requested ${pairedOptions.size} automatic feature(s).")
                             } else if (allPairedOptions.isNotEmpty()) {
