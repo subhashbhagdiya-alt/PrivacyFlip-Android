@@ -1,5 +1,6 @@
 package com.privacyflip.app
 
+import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -63,6 +64,17 @@ class ScreenMonitorService : Service() {
                     else -> return
                 }
                 val prefs = getSharedPreferences("privacy_flip", Context.MODE_PRIVATE)
+
+                // SCREEN_OFF is not proof that the phone actually locked (for
+                // example, display timeout while keyguard is disabled). Only run
+                // lock-side privacy actions when Android confirms keyguard lock.
+                if (trigger == "Screen turns OFF") {
+                    val keyguard = getSystemService(KeyguardManager::class.java)
+                    if (keyguard?.isKeyguardLocked != true) {
+                        appendLog(prefs, "Screen turned OFF without an active keyguard; lock automation skipped.")
+                        return
+                    }
+                }
 
                 // Unlock is also the recovery boundary: restore only values that
                 // Privacy Flip previously changed, even while Master Pause is enabled
