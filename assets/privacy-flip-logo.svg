@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#071426"/><stop offset=".55" stop-color="#0B2140"/><stop offset="1" stop-color="#06151F"/></linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#48E0FF"/><stop offset=".55" stop-color="#1A8BFF"/><stop offset="1" stop-color="#51F2BD"/></linearGradient>
+    <linearGradient id="leftShield" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1A6FE7"/><stop offset="1" stop-color="#0C347A"/></linearGradient>
+    <linearGradient id="rightShield" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0ABFBB"/><stop offset="1" stop-color="#075345"/></linearGradient>
+    <linearGradient id="lockBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#DDF8FF"/></linearGradient>
+    <radialGradient id="halo"><stop offset="0" stop-color="#137EFA" stop-opacity=".34"/><stop offset="1" stop-color="#137EFA" stop-opacity="0"/></radialGradient>
+    <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="14" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <clipPath id="shieldClip"><path d="M512 194 C430 247 351 267 285 282 V476 C285 632 385 754 512 824 C639 754 739 632 739 476 V282 C673 267 594 247 512 194 Z"/></clipPath>
+  </defs>
+  <rect x="28" y="28" width="968" height="968" rx="214" fill="url(#bg)"/>
+  <circle cx="512" cy="500" r="420" fill="url(#halo)"/>
+  <rect x="38" y="38" width="948" height="948" rx="205" fill="none" stroke="url(#rim)" stroke-width="16" opacity=".9"/>
+  <g fill="none" stroke-linecap="round" stroke-width="36" filter="url(#softGlow)">
+    <path d="M294 389 A270 270 0 0 1 714 297" stroke="#35CFFF"/>
+    <path d="M730 637 A270 270 0 0 1 310 729" stroke="#48E8B3"/>
+  </g>
+  <path d="M690 246 L779 284 L710 347 Z" fill="#35CFFF"/>
+  <path d="M334 778 L245 740 L314 677 Z" fill="#48E8B3"/>
+  <g clip-path="url(#shieldClip)">
+    <rect x="250" y="175" width="262" height="680" fill="url(#leftShield)"/>
+    <rect x="512" y="175" width="270" height="680" fill="url(#rightShield)"/>
+  </g>
+  <path d="M512 194 C430 247 351 267 285 282 V476 C285 632 385 754 512 824 C639 754 739 632 739 476 V282 C673 267 594 247 512 194 Z" fill="none" stroke="url(#rim)" stroke-width="18" stroke-linejoin="round"/>
+  <path d="M411 474 V420 C411 357 451 319 512 319 C573 319 613 357 613 420 V474 H556 V420 C556 393 542 376 512 376 C482 376 468 393 468 420 V474 Z" fill="#E8FAFF"/>
+  <rect x="378" y="452" width="268" height="220" rx="48" fill="url(#lockBody)"/>
+  <circle cx="512" cy="535" r="34" fill="#0A2541"/>
+  <path d="M489 548 H535 L526 602 H498 Z" fill="#0A2541"/>
+  <circle cx="512" cy="535" r="13" fill="#52DFFF"/>
+  <path d="M512 546 V574" stroke="#52DFFF" stroke-width="14" stroke-linecap="round"/>
+</svg>
