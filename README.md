@@ -2,10 +2,12 @@
 
 Privacy Flip is a native Kotlin + Jetpack Compose Android app. Rules, logs, and preferences are stored locally. It does not need an account, server, or app network permission. The optional Shizuku bridge uses local Android IPC and a restricted list of Android shell commands.
 
-## v0.3.0 features
+## v0.4.1 features
 
 - Create, search, enable/disable, and manually run local automation rules; view activity logs and export/import JSON backups.
 - Optional foreground screen monitor for screen-off and phone-unlocked events.
+- Lock-side actions require Android to report an active keyguard; display-off alone is not treated as a confirmed phone lock.
+- On authenticated unlock, recovery restores only feature states previously changed by Privacy Flip, even when Master Pause is enabled or the originating rule is no longer enabled/present.
 - Do Not Disturb lock/unlock profile using Android Notification Policy Access.
 - Optional Shizuku-backed automatic actions:
   - **Auto: Mobile data OFF on lock / ON on unlock**
