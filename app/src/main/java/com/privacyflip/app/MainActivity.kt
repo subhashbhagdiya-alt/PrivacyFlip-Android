@@ -1005,7 +1005,7 @@ private fun AppDetailsCard() {
     val packageInfo = remember(context) {
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0) }.getOrNull()
     }
-    val versionName = packageInfo?.versionName ?: "0.3.0"
+    val versionName = packageInfo?.versionName ?: "0.4.1"
     val targetSdk = context.applicationInfo.targetSdkVersion
     val androidVersion = "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})"
 
