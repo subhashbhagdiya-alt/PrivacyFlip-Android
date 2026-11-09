@@ -66,8 +66,8 @@ class MobileDataUserService : IDataAutomationService.Stub() {
                 8
             ) ?: return "UNKNOWN|timeout|Telephony state read timed out"
 
-            return PrivacyStateParser.parseMobileDataState(result.exitCode, result.output)
-                } catch (t: Throwable) {
+            PrivacyStateParser.parseMobileDataState(result.exitCode, result.output)
+        } catch (t: Throwable) {
             "UNKNOWN|" + t.javaClass.simpleName + "|" +
                 (t.message ?: "state read failed").take(180)
         }
