@@ -60,3 +60,10 @@ GitHub Actions uses JDK 17 and Gradle 8.9 to assemble a debug APK. CI success me
 
 Package: com.privacyflip.app  
 Target: Android 8.0+ (API 26+)
+
+## State detection safety and automated checks
+
+- Lock automation changes a setting only after its current state is read unambiguously.
+- Unknown, malformed, unsupported, or conflicting Wi-Fi/Bluetooth/NFC/location/mobile-data states are never interpreted as OFF.
+- Camera/microphone privacy detection requires an explicit supported per-sensor software-toggle entry, except on legacy Android dumps where the explicit enabled-sensor list is present and the requested sensor is absent.
+- GitHub Actions runs JVM unit tests for state parsing before producing the debug APK. Passing those tests does not replace device-specific testing.
