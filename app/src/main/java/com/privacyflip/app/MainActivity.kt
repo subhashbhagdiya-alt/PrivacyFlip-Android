@@ -1193,25 +1193,11 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
                     }
                 }
                 Text("Action", style = MaterialTheme.typography.labelLarge)
-                val autoOptions = listOf(
-                    "Auto: Mobile data OFF on lock / ON on unlock",
-                    "Auto: Wi-Fi OFF on lock / ON on unlock",
-                    "Auto: Bluetooth OFF on lock / ON on unlock",
-                    "Auto: Location OFF on lock / ON on unlock",
-                    "Auto: NFC OFF on lock / ON on unlock",
-                    "Auto: Camera privacy ON on lock / OFF on unlock",
-                    "Auto: Microphone privacy ON on lock / OFF on unlock"
+                Text(
+                    "Lock/Unlock automation is configured directly on the Home screen. Turn on the switch beside a feature; no separate rule is needed.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
                 )
-                Text("Automatic features (select multiple)", style = MaterialTheme.typography.labelLarge)
-                autoOptions.forEach { option ->
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(option, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                        Switch(checked = option in selectedActions, onCheckedChange = { checked ->
-                            selectedActions = if (checked) selectedActions + option else selectedActions - option
-                            if (selectedActions.isNotEmpty()) trigger = "Phone locks / screen turns OFF"
-                        })
-                    }
-                }
                 Text("Other single action", style = MaterialTheme.typography.labelLarge)
                 listOf(
                     "Open Wi-Fi settings",
@@ -1261,13 +1247,6 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
                             }
                         )
                     }
-                }
-                if (action.startsWith("Auto:")) {
-                    Text(
-                        "Needs Shizuku running and Privacy Flip permission granted. The selected control changes on screen-off and reverses on phone unlock. Camera/Microphone privacy switches ON while locked. Start screen monitoring. Device/OEM restrictions may cause a command to fail; failures are logged.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
                 }
             }
         },
