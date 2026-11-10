@@ -53,6 +53,9 @@ fun HomeAutomationControls(
         )
     }
     var refresh by remember { mutableIntStateOf(0) }
+    // These system-level controls need an elevated shell (Root or authorized Shizuku).
+    // In the user's no-Shizuku setup, do not present switches as if they can work.
+    val elevatedAccessAvailable = ShizukuAutomation.hasPermission()
     var lockDelay by remember { mutableFloatStateOf(prefs.getInt("privacy_flip_delay_lock_seconds", 10).toFloat()) }
     var unlockDelay by remember { mutableFloatStateOf(prefs.getInt("privacy_flip_delay_unlock_seconds", 1).toFloat()) }
 
@@ -139,9 +142,16 @@ fun HomeAutomationControls(
                             HomeSwitchRow(
                                 "Lock/Unlock Automation",
                                 disableOnLock || enableOnUnlock,
-                                featureAvailable
+                                featureAvailable && elevatedAccessAvailable
                             ) { enabled ->
                                 saveAutomation(feature, enabled)
+                            }
+                            if (featureAvailable && !elevatedAccessAvailable) {
+                                Text(
+                                    "Unavailable without Root or Shizuku. This Android setting is protected; the switch is disabled so it cannot falsely appear active.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
                             }
                             if (feature.privacyDirection) {
                                 Text("Camera/Microphone privacy is switched ON while locked and returned OFF only when the saved original state was OFF.",
@@ -198,8 +208,14 @@ fun HomeAutomationControls(
             }
         }
         item {
-            Text("Automatic system toggles try Root first and Shizuku second. Without either, Android blocks protected changes; those actions are skipped and logged, and you can change them manually in Android Settings.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                if (elevatedAccessAvailable)
+                    "Elevated access is available. System toggles still verify every change and restore only the saved original state."
+                else
+                    "No-Shizuku mode: screen monitoring and supported app-level rules remain available, but Android 13 blocks automatic changes to Wi-Fi, Bluetooth, Location, NFC, Mobile Data, Camera privacy and Microphone privacy without Root or Shizuku.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
