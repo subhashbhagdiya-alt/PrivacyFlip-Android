@@ -26,7 +26,7 @@ object RootAutomation {
         }
     }
 
-    private fun hasRootAccess(): Boolean = runCatching {
+    fun hasRootAccess(): Boolean = runCatching {
         val result = runSu("id", 8) ?: return@runCatching false
         result.exitCode == 0 && Regex("""uid=0\b""").containsMatchIn(result.output)
     }.getOrDefault(false)
