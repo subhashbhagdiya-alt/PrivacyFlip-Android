@@ -10,8 +10,8 @@ android {
         applicationId = "com.privacyflip.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.4.1"
+        versionCode = 10
+        versionName = "0.4.6"
     }
     buildFeatures { compose = true; aidl = true }
     compileOptions {
@@ -32,4 +32,5 @@ dependencies {
     implementation("dev.rikka.shizuku:api:13.1.5")
     implementation("dev.rikka.shizuku:provider:13.1.5")
     debugImplementation("androidx.compose.ui:ui-tooling")
+    testImplementation("junit:junit:4.13.2")
 }

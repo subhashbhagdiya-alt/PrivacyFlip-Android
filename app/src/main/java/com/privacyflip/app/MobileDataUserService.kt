@@ -66,18 +66,7 @@ class MobileDataUserService : IDataAutomationService.Stub() {
                 8
             ) ?: return "UNKNOWN|timeout|Telephony state read timed out"
 
-            if (result.exitCode != 0) {
-                return "UNKNOWN|exit=" + result.exitCode + "|" + result.output.take(180)
-            }
-            val states = Regex("mIsDataEnabled\\s*=\\s*(true|false)", RegexOption.IGNORE_CASE)
-                .findAll(result.output)
-                .map { it.groupValues[1].equals("true", ignoreCase = true) }
-                .toSet()
-            when (states.size) {
-                0 -> "UNKNOWN|missing|No mIsDataEnabled field found in telephony dump"
-                1 -> if (states.first()) "ENABLED" else "DISABLED"
-                else -> "UNKNOWN|ambiguous|SIM data states disagree; refusing to guess"
-            }
+            PrivacyStateParser.parseMobileDataState(result.exitCode, result.output)
         } catch (t: Throwable) {
             "UNKNOWN|" + t.javaClass.simpleName + "|" +
                 (t.message ?: "state read failed").take(180)

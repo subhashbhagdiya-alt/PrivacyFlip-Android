@@ -22,6 +22,7 @@ class ScreenMonitorService : Service() {
     private val actionHandler = Handler(Looper.getMainLooper())
     private var pendingHomeLock: Runnable? = null
     private var pendingHomeUnlock: Runnable? = null
+    private var pendingKeyguardCheck: Runnable? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -65,15 +66,21 @@ class ScreenMonitorService : Service() {
                 }
                 val prefs = getSharedPreferences("privacy_flip", Context.MODE_PRIVATE)
 
-                // SCREEN_OFF is not proof that the phone actually locked (for
-                // example, display timeout while keyguard is disabled). Only run
-                // lock-side privacy actions when Android confirms keyguard lock.
+                // A screen-off broadcast can arrive just before Android finishes
+                // presenting the keyguard. Give the system a short window to report
+                // the locked state instead of dropping the automation immediately.
                 if (trigger == "Screen turns OFF") {
                     val keyguard = getSystemService(KeyguardManager::class.java)
                     if (keyguard?.isKeyguardLocked != true) {
-                        appendLog(prefs, "Screen turned OFF without an active keyguard; lock automation skipped.")
+                        appendLog(prefs, "Screen OFF received; waiting briefly for Android keyguard confirmation.")
+                        scheduleKeyguardConfirmation(prefs)
                         return
                     }
+                }
+
+                if (trigger == "Phone unlocked") {
+                    pendingKeyguardCheck?.let { actionHandler.removeCallbacks(it) }
+                    pendingKeyguardCheck = null
                 }
 
                 // Unlock is also the recovery boundary: restore only values that
@@ -194,6 +201,35 @@ class ScreenMonitorService : Service() {
             @Suppress("DEPRECATION")
             registerReceiver(receiver, filter)
         }
+    }
+
+    private fun scheduleKeyguardConfirmation(prefs: android.content.SharedPreferences) {
+        pendingKeyguardCheck?.let { actionHandler.removeCallbacks(it) }
+        var retries = 0
+        lateinit var check: Runnable
+        check = Runnable {
+            val locked = runCatching {
+                getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
+            }.getOrDefault(false)
+
+            if (locked) {
+                pendingKeyguardCheck = null
+                // Re-enter the same receiver path only after Android confirms
+                // keyguard lock. The normal event handling below then runs once.
+                receiver?.onReceive(this@ScreenMonitorService, Intent(Intent.ACTION_SCREEN_OFF))
+            } else if (retries < 8) {
+                retries += 1
+                actionHandler.postDelayed(check, 250L)
+            } else {
+                pendingKeyguardCheck = null
+                appendLog(
+                    prefs,
+                    "Screen turned OFF, but Android did not report an active keyguard within 2 seconds; lock automation skipped."
+                )
+            }
+        }
+        pendingKeyguardCheck = check
+        actionHandler.postDelayed(check, 250L)
     }
 
     private fun scheduleHomeActions(trigger: String, prefs: android.content.SharedPreferences) {
@@ -363,8 +399,10 @@ class ScreenMonitorService : Service() {
     override fun onDestroy() {
         pendingHomeLock?.let { actionHandler.removeCallbacks(it) }
         pendingHomeUnlock?.let { actionHandler.removeCallbacks(it) }
+        pendingKeyguardCheck?.let { actionHandler.removeCallbacks(it) }
         pendingHomeLock = null
         pendingHomeUnlock = null
+        pendingKeyguardCheck = null
         receiver?.let { runCatching { unregisterReceiver(it) } }
         receiver = null
         getSharedPreferences("privacy_flip", Context.MODE_PRIVATE).edit()

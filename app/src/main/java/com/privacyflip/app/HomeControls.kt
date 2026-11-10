@@ -24,6 +24,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private data class HomeFeature(
     val key: String,
@@ -53,11 +55,25 @@ fun HomeAutomationControls(
         )
     }
     var refresh by remember { mutableIntStateOf(0) }
+    // Check root off the main thread; Shizuku is checked immediately and again
+    // after returning to this screen. Root and Shizuku are alternative backends.
+    var elevatedAccessAvailable by remember { mutableStateOf(ShizukuAutomation.hasPermission()) }
+    LaunchedEffect(Unit) {
+        elevatedAccessAvailable = withContext(Dispatchers.IO) {
+            ShizukuAutomation.hasPermission() || RootAutomation.hasRootAccess()
+        }
+    }
     var lockDelay by remember { mutableFloatStateOf(prefs.getInt("privacy_flip_delay_lock_seconds", 10).toFloat()) }
     var unlockDelay by remember { mutableFloatStateOf(prefs.getInt("privacy_flip_delay_unlock_seconds", 1).toFloat()) }
 
-    fun saveToggle(feature: HomeFeature, suffix: String, checked: Boolean) {
-        prefs.edit().putBoolean("home_${feature.key}_${suffix}", checked).apply()
+    fun saveAutomation(feature: HomeFeature, checked: Boolean) {
+        // One Home switch controls the complete lock/unlock pair.
+        // Always persist both directions together so users never need to
+        // configure a separate trigger or second switch.
+        prefs.edit()
+            .putBoolean("home_${feature.key}_disable_on_lock", checked)
+            .putBoolean("home_${feature.key}_enable_on_unlock", checked)
+            .apply()
         refresh++
         if (checked) ensureMonitor(context, prefs)
     }
@@ -95,8 +111,30 @@ fun HomeAutomationControls(
         item {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Screen Lock/Unlock Actions", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text("Choose each feature separately. Your original state is restored only when Privacy Flip has safely recorded its own change.",
+                Text("Turn one switch ON to apply the lock action and automatically restore the original state on unlock. No separate rule or trigger is needed.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        item {
+            if (!elevatedAccessAvailable) {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        Modifier.padding(14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("ⓘ", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        Text(
+                            "Root or Shizuku access is required to change protected system settings automatically. These switches stay disabled until elevated access is available.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
         }
         item {
@@ -130,15 +168,19 @@ fun HomeAutomationControls(
                                     )
                                 }
                             }
-                            HomeSwitchRow("Disable on lock", disableOnLock, featureAvailable) {
-                                saveToggle(feature, "disable_on_lock", it)
-                            }
-                            HomeSwitchRow("Enable on unlock", enableOnUnlock, featureAvailable) {
-                                saveToggle(feature, "enable_on_unlock", it)
+                            HomeSwitchRow(
+                                "Lock/Unlock Automation",
+                                elevatedAccessAvailable && (disableOnLock || enableOnUnlock),
+                                featureAvailable && elevatedAccessAvailable
+                            ) { enabled ->
+                                saveAutomation(feature, enabled)
                             }
                             if (feature.privacyDirection) {
-                                Text("Camera/Microphone privacy is switched ON while locked and returned OFF only when the saved original state was OFF.",
-                                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    "Privacy turns ON while locked and restores the saved original state on unlock.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                         if (index != features.lastIndex) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -191,8 +233,11 @@ fun HomeAutomationControls(
             }
         }
         item {
-            Text("Automatic system toggles try Root first and Shizuku second. Without either, Android blocks protected changes; those actions are skipped and logged, and you can change them manually in Android Settings.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                "Changes are verified before the original setting is restored on unlock.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

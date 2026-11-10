@@ -23,19 +23,14 @@ object RestoreRecovery {
             prefs.edit().putString("logs", "Recovery ($source): $message\n$old".take(6000)).apply()
         }
 
+        // Once Privacy Flip has changed a setting and saved its original state,
+        // restoration is mandatory even if the user turns the Home switch OFF
+        // while the phone is locked. Never strand a setting in the lock state.
         pairedOptions.forEach { option ->
             val owned = prefs.getBoolean("paired_restore_" + option + "_owned", false)
-            val owner = prefs.getString("paired_restore_" + option + "_rule", null)
-            val homeRestoreEnabled = prefs.getBoolean("home_${option}_enable_on_unlock", false)
-            if (owned && (owner != "Home controls" || homeRestoreEnabled)) {
-                PairedFeatureRestoreController.onUnlock(app, option, log)
-            }
+            if (owned) PairedFeatureRestoreController.onUnlock(app, option, log)
         }
         val mobileOwned = prefs.getBoolean("mobile_data_restore_owned", false)
-        val mobileOwner = prefs.getString("mobile_data_restore_rule", null)
-        val homeMobileRestoreEnabled = prefs.getBoolean("home_mobile_data_enable_on_unlock", false)
-        if (mobileOwned && (mobileOwner != "Home controls" || homeMobileRestoreEnabled)) {
-            MobileDataRestoreController.onUnlock(app, log)
-        }
+        if (mobileOwned) MobileDataRestoreController.onUnlock(app, log)
     }
 }
