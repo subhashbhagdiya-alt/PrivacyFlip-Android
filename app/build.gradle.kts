@@ -10,8 +10,8 @@ android {
         applicationId = "com.privacyflip.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.4.5"
+        versionCode = 10
+        versionName = "0.4.6"
     }
     buildFeatures { compose = true; aidl = true }
     compileOptions {
