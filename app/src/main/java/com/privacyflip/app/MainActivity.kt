@@ -918,7 +918,7 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
                 }
             }
         }
-        item { Text("Privacy Flip 0.4.0 · Offline-first", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        item { Text("Privacy Flip 0.4.4 · Offline-first", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
 
@@ -1096,7 +1096,7 @@ private fun ShizukuSetupCard() {
         val permissionResult = Shizuku.OnRequestPermissionResultListener { code, result ->
             if (code == requestCode) {
                 status = if (result == android.content.pm.PackageManager.PERMISSION_GRANTED)
-                    "Shizuku permission granted. Choose an automatic lock/unlock action and start screen monitoring."
+                    "Shizuku permission granted. Turn on the required feature switch on the Home screen and keep screen monitoring enabled."
                 else "Shizuku permission denied. Automatic system controls will not run until permission is granted."
             }
         }
