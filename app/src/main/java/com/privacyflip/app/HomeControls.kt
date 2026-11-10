@@ -24,6 +24,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private data class HomeFeature(
     val key: String,
@@ -53,9 +55,14 @@ fun HomeAutomationControls(
         )
     }
     var refresh by remember { mutableIntStateOf(0) }
-    // These system-level controls need an elevated shell (Root or authorized Shizuku).
-    // In the user's no-Shizuku setup, do not present switches as if they can work.
-    val elevatedAccessAvailable = ShizukuAutomation.hasPermission()
+    // Check root off the main thread; Shizuku is checked immediately and again
+    // after returning to this screen. Root and Shizuku are alternative backends.
+    var elevatedAccessAvailable by remember { mutableStateOf(ShizukuAutomation.hasPermission()) }
+    LaunchedEffect(Unit) {
+        elevatedAccessAvailable = withContext(Dispatchers.IO) {
+            ShizukuAutomation.hasPermission() || RootAutomation.hasRootAccess()
+        }
+    }
     var lockDelay by remember { mutableFloatStateOf(prefs.getInt("privacy_flip_delay_lock_seconds", 10).toFloat()) }
     var unlockDelay by remember { mutableFloatStateOf(prefs.getInt("privacy_flip_delay_unlock_seconds", 1).toFloat()) }
 
@@ -141,7 +148,7 @@ fun HomeAutomationControls(
                             }
                             HomeSwitchRow(
                                 "Lock/Unlock Automation",
-                                disableOnLock || enableOnUnlock,
+                                elevatedAccessAvailable && (disableOnLock || enableOnUnlock),
                                 featureAvailable && elevatedAccessAvailable
                             ) { enabled ->
                                 saveAutomation(feature, enabled)
