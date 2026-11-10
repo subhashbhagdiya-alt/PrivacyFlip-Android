@@ -116,6 +116,28 @@ fun HomeAutomationControls(
             }
         }
         item {
+            if (!elevatedAccessAvailable) {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        Modifier.padding(14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("ⓘ", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        Text(
+                            "Root or Shizuku access is required to change protected system settings automatically. These switches stay disabled until elevated access is available.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+        item {
             Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
                     features.forEachIndexed { index, feature ->
@@ -153,16 +175,12 @@ fun HomeAutomationControls(
                             ) { enabled ->
                                 saveAutomation(feature, enabled)
                             }
-                            if (featureAvailable && !elevatedAccessAvailable) {
-                                Text(
-                                    "Unavailable without Root or Shizuku. This Android setting is protected; the switch is disabled so it cannot falsely appear active.",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                            }
                             if (feature.privacyDirection) {
-                                Text("Camera/Microphone privacy is switched ON while locked and returned OFF only when the saved original state was OFF.",
-                                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    "Privacy turns ON while locked and restores the saved original state on unlock.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                         if (index != features.lastIndex) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -216,10 +234,7 @@ fun HomeAutomationControls(
         }
         item {
             Text(
-                if (elevatedAccessAvailable)
-                    "Elevated access is available. System toggles still verify every change and restore only the saved original state."
-                else
-                    "No-Shizuku mode: screen monitoring and supported app-level rules remain available, but Android 13 blocks automatic changes to Wi-Fi, Bluetooth, Location, NFC, Mobile Data, Camera privacy and Microphone privacy without Root or Shizuku.",
+                "Changes are verified before the original setting is restored on unlock.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
