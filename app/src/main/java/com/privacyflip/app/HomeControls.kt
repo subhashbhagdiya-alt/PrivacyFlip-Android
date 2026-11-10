@@ -56,8 +56,14 @@ fun HomeAutomationControls(
     var lockDelay by remember { mutableFloatStateOf(prefs.getInt("privacy_flip_delay_lock_seconds", 10).toFloat()) }
     var unlockDelay by remember { mutableFloatStateOf(prefs.getInt("privacy_flip_delay_unlock_seconds", 1).toFloat()) }
 
-    fun saveToggle(feature: HomeFeature, suffix: String, checked: Boolean) {
-        prefs.edit().putBoolean("home_${feature.key}_${suffix}", checked).apply()
+    fun saveAutomation(feature: HomeFeature, checked: Boolean) {
+        // One Home switch controls the complete lock/unlock pair.
+        // Always persist both directions together so users never need to
+        // configure a separate trigger or second switch.
+        prefs.edit()
+            .putBoolean("home_${feature.key}_disable_on_lock", checked)
+            .putBoolean("home_${feature.key}_enable_on_unlock", checked)
+            .apply()
         refresh++
         if (checked) ensureMonitor(context, prefs)
     }
@@ -95,7 +101,7 @@ fun HomeAutomationControls(
         item {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Screen Lock/Unlock Actions", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text("Choose each feature separately. Your original state is restored only when Privacy Flip has safely recorded its own change.",
+                Text("Turn one switch ON to apply the lock action and automatically restore the original state on unlock. No separate rule or trigger is needed.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
@@ -130,11 +136,12 @@ fun HomeAutomationControls(
                                     )
                                 }
                             }
-                            HomeSwitchRow("Disable on lock", disableOnLock, featureAvailable) {
-                                saveToggle(feature, "disable_on_lock", it)
-                            }
-                            HomeSwitchRow("Enable on unlock", enableOnUnlock, featureAvailable) {
-                                saveToggle(feature, "enable_on_unlock", it)
+                            HomeSwitchRow(
+                                "Lock/Unlock Automation",
+                                disableOnLock || enableOnUnlock,
+                                featureAvailable
+                            ) { enabled ->
+                                saveAutomation(feature, enabled)
                             }
                             if (feature.privacyDirection) {
                                 Text("Camera/Microphone privacy is switched ON while locked and returned OFF only when the saved original state was OFF.",
