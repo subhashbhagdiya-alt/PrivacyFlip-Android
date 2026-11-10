@@ -918,7 +918,7 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, developer: Boolean
                 }
             }
         }
-        item { Text("Privacy Flip 0.4.5 · Offline-first", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        item { Text("Privacy Flip 0.4.6 · Offline-first", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
 
