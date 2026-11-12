@@ -252,7 +252,7 @@ private fun PrivacyFlipApp(context: Context, requestNotificationPermission: () -
 }
 
 @Composable
-private fun NavItem(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
+private fun RowScope.NavItem(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
     NavigationBarItem(selected = selected, onClick = onClick, icon = { Icon(icon, null) }, label = { Text(label, maxLines = 1) })
 }
 
