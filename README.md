@@ -1,8 +1,8 @@
-# Privacy Flip: offline Android automation (no root, no Shizuku, no ADB)
+# Privacy Flip: offline Android automation
 
-Native Kotlin + Jetpack Compose app. Pick a trigger, pick an action, and it runs on your phone with no account and no internet permission. Everything uses normal Android APIs.
+Native Kotlin + Jetpack Compose app. Pick a trigger, pick an action, and it runs on your phone with no account and no internet permission.
 
-## What works
+## What works without root, Shizuku or ADB
 
 **Triggers** (run in the background through a small foreground service)
 Screen off/on, phone unlocked, charger connected/disconnected, battery below your threshold, network change, wired headphones plugged/unplugged, airplane mode change, face-down flip, device boot, daily time schedule, and a manual Run now button.
@@ -20,6 +20,12 @@ Screen off/on, phone unlocked, charger connected/disconnected, battery below you
 
 The Settings tab shows each permission with a button to grant it, and Diagnostics shows what is and is not ready. 11 ready-made presets cover the common cases, and the Rules tab builds custom IF-THEN rules.
 
+## Lock / Unlock automation (Stage 1)
+
+One switch per feature on Home: Wi-Fi, Bluetooth, Location, Mobile data and NFC turn OFF when the phone locks and ON when it unlocks; camera and microphone privacy turn ON when locked and OFF when unlocked. Optional lock/unlock delays and a "restore original state" mode.
+
+Android does not let normal apps change these settings, so the switches need **Root** (a Shizuku backend is planned). Without Root they are saved but skipped, and the activity log says so. Every step reads the real state, saves the original, applies the change, verifies it and logs the true result. Camera/microphone privacy is experimental and cannot be verified, so it is logged as "unverified". A failed step leaves a recovery record that the next unlock retries.
+
 ## What cannot work without root or Shizuku
 
 Android 10+ no longer lets normal apps switch Wi-Fi on or off, and Android 13+ blocks Bluetooth switching. Privacy Flip sends a notification that opens the Wi-Fi panel or Bluetooth settings in one tap instead. Silent Wi-Fi/Bluetooth, airplane mode toggling and force-stopping other apps are not possible without elevated access.
@@ -35,4 +41,4 @@ JDK 17, Gradle 8.9 and Android SDK 35. Run `./tools/build_debug_apk.sh`, or open
 
 ## Status
 
-Version 0.2.0. Needs real-device testing: trigger delivery after the phone kills background apps, exact-alarm timing, and OEM-specific accessibility and battery settings. Treat an action as working only after you have seen it log success in Diagnostics.
+Version 0.3.0. Needs real-device testing: trigger delivery after the phone kills background apps, exact-alarm timing, the accessibility lock action, and the Root commands on your phone. Treat an action as working only after you have seen it log success in Diagnostics.

@@ -11,8 +11,10 @@ APP_BUILD = ROOT / "app/build.gradle.kts"
 WORKFLOW = ROOT / ".github/workflows/android-apk.yml"
 ACCESS_XML = ROOT / "app/src/main/res/xml/accessibility_service_config.xml"
 ANDROID_NS = "{http://schemas.android.com/apk/res/android}"
-KOTLIN_FILES = ["MainActivity.kt", "AutomationReceivers.kt", "Actions.kt", "Presets.kt",
-                "MonitorService.kt", "PrivacyFlipAccessibilityService.kt"]
+KOTLIN_FILES = ["MainActivity.kt", "Store.kt", "Home.kt", "PresetsScreen.kt", "RulesScreen.kt",
+                "DiagnosticsScreen.kt", "SettingsScreen.kt", "HomeAutomationControls.kt",
+                "AutomationReceivers.kt", "Actions.kt", "Presets.kt", "Features.kt",
+                "LockUnlockEngine.kt", "MonitorService.kt", "PrivacyFlipAccessibilityService.kt"]
 errors: list[str] = []
 
 
@@ -63,7 +65,7 @@ if not errors:
     permissions = {n.attrib.get(ANDROID_NS + "name", "") for n in manifest.findall("uses-permission")}
     for perm in ("RECEIVE_BOOT_COMPLETED", "ACCESS_NETWORK_STATE", "POST_NOTIFICATIONS", "VIBRATE",
                  "FOREGROUND_SERVICE", "FOREGROUND_SERVICE_SPECIAL_USE", "ACCESS_NOTIFICATION_POLICY",
-                 "WRITE_SETTINGS", "SCHEDULE_EXACT_ALARM"):
+                 "WRITE_SETTINGS", "SCHEDULE_EXACT_ALARM", "ACCESS_WIFI_STATE"):
         require(f"android.permission.{perm}" in permissions, f"{perm} permission missing")
     require("android.permission.INTERNET" not in permissions, "Unexpected INTERNET permission: app is offline-first")
     require(manifest.find("application").attrib.get(ANDROID_NS + "allowBackup") == "false", "Android Auto Backup must remain disabled")
@@ -96,13 +98,16 @@ if not errors:
         "AutomationScheduler.scheduleNext", 'CreateDocument("application/json")', "OpenDocument()",
         "supportedCustomTriggers", "supportedCustomActions", "object PresetCatalog",
         "Show notification (permission needed)",
+        "object LockUnlockEngine", "LockUnlockEngine.onEvent", "fun LockUnlockCard", "object RootShell",
+        "object RootBackend", "object StandardBackend", "SystemState.read", "recovery pending",
     ):
         require(marker in code, f"Source marker missing: {marker}")
 
-    main = sources["MainActivity.kt"]
-    home_page = main.split("private fun HomePage", 1)[1].split("@Composable", 1)[0] if "private fun HomePage" in main else ""
+    home = sources["Home.kt"]
+    home_page = home.split("fun HomePage", 1)[1].split("@Composable", 1)[0] if "fun HomePage" in home else ""
     require("val context = LocalContext.current" in home_page, "HomePage must obtain Context before scheduling alarms")
-    require('Text("Run now")' in main, "Manual quick action needs a visible Run now control")
+    require("LockUnlockCard()" in home_page, "HomePage must show the lock/unlock controls")
+    require('Text("Run now")' in sources["RulesScreen.kt"], "Manual quick action needs a visible Run now control")
     require('rule.optString("id") != onlyRuleId' in sources["AutomationReceivers.kt"], "Manual execution must be scoped to the selected rule")
 
     preset_ids = [line.split('"')[1] for line in sources["Presets.kt"].splitlines() if line.strip().startswith("Preset(\"")]
@@ -113,8 +118,9 @@ if not errors:
             aid = line.split('"')[1]
             require(aid in action_ids, f"Preset action id has no executor: {aid}")
 
+    require("ProcessBuilder(\"su\", \"-c\", command)" in sources["Features.kt"], "Root shell must run only the allow-listed command")
     app_build = APP_BUILD.read_text(encoding="utf-8")
-    for version in ("compileSdk = 35", "targetSdk = 35", "minSdk = 26", 'versionName = "0.2.0"'):
+    for version in ("compileSdk = 35", "targetSdk = 35", "minSdk = 26", 'versionName = "0.3.0"'):
         require(version in app_build, f"Android build configuration missing: {version}")
     workflow = WORKFLOW.read_text(encoding="utf-8")
     require("gradle-version: '8.9'" in workflow, "CI should use the Gradle version compatible with AGP 8.7.3")
