@@ -25,6 +25,7 @@ object AutomationEventProcessor {
     private const val CHANNEL_ID = "privacy_flip_events"
 
     fun handle(context: Context, event: String, onlyRuleId: String? = null) {
+        if (onlyRuleId == null) LockUnlockEngine.onEvent(context, event)
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (prefs.getBoolean("masterPaused", false)) return
 
