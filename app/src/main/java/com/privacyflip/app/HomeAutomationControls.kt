@@ -2,7 +2,9 @@ package com.privacyflip.app
 
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.net.Uri
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -17,6 +19,8 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
+
+private const val PREFS_NAME = "privacy_flip_local"
 
 private fun iconFor(feature: Feature): ImageVector = when (feature) {
     Feature.WIFI -> Icons.Default.Wifi
@@ -38,15 +42,23 @@ private fun openShizuku(context: Context) {
     }
 }
 
-@Composable
-private fun ModeChip(selected: Boolean, label: String, onClick: () -> Unit) {
-    FilterChip(selected = selected, onClick = onClick, label = { Text(label) })
+/** What the Home screen needs to know about the backend, computed once per screen. */
+internal class BackendUi(
+    val backend: AutomationBackend,
+    val shizuku: String,
+    val rootFound: Boolean?,
+    val mode: String,
+    val setMode: (String) -> Unit,
+    val recheck: () -> Unit
+) {
+    /** True when Shizuku or Root can really change the settings. */
+    val ready: Boolean get() = backend.supports(Feature.WIFI)
 }
 
 @Composable
-internal fun LockUnlockCard() {
+internal fun rememberBackendUi(): BackendUi {
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("privacy_flip_local", Context.MODE_PRIVATE) }
+    val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
     var mode by remember { mutableStateOf(prefs.getString("backendMode", "auto") ?: "auto") }
     var rootFound by remember { mutableStateOf(RootShell.cachedAvailable()) }
     var shizuku by remember { mutableStateOf("checking") }
@@ -85,104 +97,230 @@ internal fun LockUnlockCard() {
         "shizuku" -> ShizukuBackend
         else -> if (shizuku == "ready") ShizukuBackend else if (rootFound == true) RootBackend else StandardBackend
     }
-    val rootText = when (rootFound) {
-        true -> "detected"
-        false -> "not found"
-        null -> "checking"
-    }
-    val select: (String) -> Unit = { value ->
-        mode = value
-        prefs.edit().putString("backendMode", value).apply()
-    }
+    return BackendUi(
+        backend = backend,
+        shizuku = shizuku,
+        rootFound = rootFound,
+        mode = mode,
+        setMode = { value ->
+            mode = value
+            prefs.edit().putString("backendMode", value).apply()
+        },
+        recheck = { recheck++ }
+    )
+}
 
-    Card {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Lock / Unlock automation", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text(
-                "One switch per feature. When locked: connectivity OFF, privacy ON. When unlocked: the reverse.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text("Mode in use: ${backend.name}", style = MaterialTheme.typography.labelLarge)
-            Text(
-                "Root: $rootText · Shizuku: $shizuku",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                ModeChip(mode == "auto", "Auto") { select("auto") }
-                ModeChip(mode == "standard", "Standard") { select("standard") }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                ModeChip(mode == "root", "Root") { select("root") }
-                ModeChip(mode == "shizuku", "Shizuku") { select("shizuku") }
-                TextButton(onClick = { recheck++ }) { Text("Re-check") }
-            }
-            if (shizuku == "not running") {
-                Text(
-                    "Shizuku is not running. Install it, then start it from its app using Wireless debugging (Developer options). It must be started again after every reboot.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                OutlinedButton(onClick = { openShizuku(context) }, modifier = Modifier.fillMaxWidth()) { Text("Open Shizuku") }
-            } else if (shizuku == "needs permission") {
-                Button(onClick = { ShizukuBridge.requestPermission() }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Grant Shizuku permission")
-                }
-            }
-            if (!backend.supports(Feature.WIFI)) {
-                Text(
-                    "Standard Android cannot switch these settings. Switches are saved, but skipped and logged until Shizuku or Root is ready.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary
-                )
-            }
-            Feature.values().forEach { feature ->
-                var enabled by remember { mutableStateOf(prefs.getBoolean(feature.enabledKey, false)) }
-                val note = when {
-                    !backend.supports(feature) -> " · needs Shizuku or Root"
-                    feature == Feature.CAMERA_PRIVACY || feature == Feature.MIC_PRIVACY -> " · experimental, cannot be verified"
-                    else -> ""
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(iconFor(feature), null, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(feature.title, fontWeight = FontWeight.Medium)
-                        Text(
-                            feature.description + note,
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(checked = enabled, onCheckedChange = {
-                        enabled = it
-                        prefs.edit().putBoolean(feature.enabledKey, it).apply()
-                    })
-                }
-            }
-            var lockDelay by remember { mutableFloatStateOf(prefs.getInt("lockDelaySec", 0).toFloat()) }
-            Text("Lock delay: ${lockDelay.toInt()} s", fontWeight = FontWeight.Medium)
-            Slider(
-                value = lockDelay, onValueChange = { lockDelay = it },
-                onValueChangeFinished = { prefs.edit().putInt("lockDelaySec", lockDelay.toInt()).apply() },
-                valueRange = 0f..30f, steps = 29
-            )
-            var unlockDelay by remember { mutableFloatStateOf(prefs.getInt("unlockDelaySec", 0).toFloat()) }
-            Text("Unlock delay: ${unlockDelay.toInt()} s", fontWeight = FontWeight.Medium)
-            Slider(
-                value = unlockDelay, onValueChange = { unlockDelay = it },
-                onValueChangeFinished = { prefs.edit().putInt("unlockDelaySec", unlockDelay.toInt()).apply() },
-                valueRange = 0f..10f, steps = 9
-            )
-            var restore by remember { mutableStateOf(prefs.getBoolean("restoreOriginal", false)) }
+/** The whole Home content: status, connect help (only when needed), features, advanced. */
+@Composable
+internal fun LockUnlockCard() {
+    val ui = rememberBackendUi()
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        StatusCard(ui)
+        if (!ui.ready) ConnectCard(ui)
+        FeaturesCard(ui)
+        AdvancedCard(ui)
+    }
+}
+
+@Composable
+private fun StatusCard(ui: BackendUi) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
+    var paused by remember { mutableStateOf(prefs.getBoolean("masterPaused", false)) }
+    val active = ui.ready && !paused
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = if (active) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Restore original state on unlock", fontWeight = FontWeight.Medium)
+                    Text("Privacy Flip", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text(if (paused) "Paused" else "Protection on", style = MaterialTheme.typography.bodyMedium)
+                }
+                Switch(checked = !paused, onCheckedChange = {
+                    paused = !it
+                    prefs.edit().putBoolean("masterPaused", paused).apply()
+                    AutomationScheduler.scheduleNext(context)
+                })
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    if (ui.ready) Icons.Default.CheckCircle else Icons.Default.Warning, null,
+                    tint = if (ui.ready) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.tertiary
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    if (ui.ready) "Connected · ${ui.backend.name}" else "Not connected",
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConnectCard(ui: BackendUi) {
+    val context = LocalContext.current
+    Card {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            when (ui.shizuku) {
+                "needs permission" -> {
+                    Text("Shizuku is running", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Allow Privacy Flip to use it. This takes one tap.", style = MaterialTheme.typography.bodyMedium)
+                    Button(onClick = { ShizukuBridge.requestPermission() }, modifier = Modifier.fillMaxWidth()) { Text("Allow") }
+                }
+                "checking" -> Text("Checking connection…", style = MaterialTheme.typography.bodyMedium)
+                else -> {
+                    Text("Connect Shizuku", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text(
-                        "Instead of forcing ON, put each feature back to what it was before locking.",
+                        "1. Install Shizuku\n2. Turn on Wireless debugging (Settings > Developer options)\n3. Open Shizuku and tap Start",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Button(onClick = { openShizuku(context) }, modifier = Modifier.fillMaxWidth()) { Text("Open Shizuku") }
+                    Text(
+                        "Rooted phone? Open Advanced below and choose Root.",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Switch(checked = restore, onCheckedChange = {
-                    restore = it
-                    prefs.edit().putBoolean("restoreOriginal", it).apply()
-                })
+            }
+            TextButton(onClick = ui.recheck) { Text("Check again") }
+        }
+    }
+}
+
+@Composable
+private fun FeaturesCard(ui: BackendUi) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
+    var tick by remember { mutableIntStateOf(0) }
+    DisposableEffect(prefs) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> tick++ }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+    Card {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Lock and unlock", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                "Connections turn off when you lock and back on when you unlock. Camera and microphone protection does the reverse.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(6.dp))
+            Feature.values().forEach { feature ->
+                val result = remember(tick) { prefs.getString("pf_result_${feature.key}", null) }
+                var enabled by remember { mutableStateOf(prefs.getBoolean(feature.enabledKey, false)) }
+                Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        iconFor(feature), null,
+                        tint = if (ui.ready) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(feature.title, fontWeight = FontWeight.Medium)
+                        Text(
+                            result ?: if (feature.lockTarget) "Protected while locked" else "Off while locked",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = enabled,
+                        onCheckedChange = {
+                            enabled = it
+                            prefs.edit().putBoolean(feature.enabledKey, it).apply()
+                        },
+                        enabled = ui.ready
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ModeChip(selected: Boolean, label: String, onClick: () -> Unit) {
+    FilterChip(selected = selected, onClick = onClick, label = { Text(label) })
+}
+
+@Composable
+private fun AdvancedCard(ui: BackendUi) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
+    var open by remember { mutableStateOf(false) }
+    Card {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth().clickable { open = !open }, verticalAlignment = Alignment.CenterVertically) {
+                Text("Advanced", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Icon(if (open) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
+            }
+            if (open) {
+                Text("Method", style = MaterialTheme.typography.labelLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ModeChip(ui.mode == "auto", "Auto") { ui.setMode("auto") }
+                    ModeChip(ui.mode == "shizuku", "Shizuku") { ui.setMode("shizuku") }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ModeChip(ui.mode == "root", "Root") { ui.setMode("root") }
+                    ModeChip(ui.mode == "standard", "None") { ui.setMode("standard") }
+                }
+                val rootText = when (ui.rootFound) {
+                    true -> "found"
+                    false -> "not found"
+                    null -> "checking"
+                }
+                Text(
+                    "Auto uses Shizuku first, then Root. Shizuku: ${ui.shizuku}. Root: $rootText.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                var lockDelay by remember { mutableFloatStateOf(prefs.getInt("lockDelaySec", 0).toFloat()) }
+                Text("Wait after locking: ${lockDelay.toInt()} s", fontWeight = FontWeight.Medium)
+                Slider(
+                    value = lockDelay, onValueChange = { lockDelay = it },
+                    onValueChangeFinished = { prefs.edit().putInt("lockDelaySec", lockDelay.toInt()).apply() },
+                    valueRange = 0f..30f, steps = 29
+                )
+                var unlockDelay by remember { mutableFloatStateOf(prefs.getInt("unlockDelaySec", 0).toFloat()) }
+                Text("Wait after unlocking: ${unlockDelay.toInt()} s", fontWeight = FontWeight.Medium)
+                Slider(
+                    value = unlockDelay, onValueChange = { unlockDelay = it },
+                    onValueChangeFinished = { prefs.edit().putInt("unlockDelaySec", unlockDelay.toInt()).apply() },
+                    valueRange = 0f..10f, steps = 9
+                )
+                var restore by remember { mutableStateOf(prefs.getBoolean("restoreOriginal", false)) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Restore what it was", fontWeight = FontWeight.Medium)
+                        Text(
+                            "On unlock, put each feature back the way it was before locking.",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(checked = restore, onCheckedChange = {
+                        restore = it
+                        prefs.edit().putBoolean("restoreOriginal", it).apply()
+                    })
+                }
+
+                Text("Test", style = MaterialTheme.typography.labelLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { LockUnlockEngine.testNow(context, true) }, modifier = Modifier.weight(1f)) { Text("Test lock") }
+                    OutlinedButton(onClick = { LockUnlockEngine.testNow(context, false) }, modifier = Modifier.weight(1f)) { Text("Test unlock") }
+                }
+                Text(
+                    "Runs your switched-on features right now. The result shows under each one.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                val lastEvent = remember(open) { prefs.getString("lastScreenEvent", null) ?: "none yet" }
+                Text(
+                    "Last screen event seen: $lastEvent",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "If this says none yet after you lock the phone, set battery to Unrestricted in Settings.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
