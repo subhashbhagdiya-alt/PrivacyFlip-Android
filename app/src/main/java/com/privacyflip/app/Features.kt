@@ -31,6 +31,25 @@ internal enum class Feature(
     val pendingKey: String get() = "pf_pending_$key"
 }
 
+/** The only shell commands the app ever runs (by Root or Shizuku). Built from the Feature allow-list. */
+internal object FeatureCommands {
+    fun command(feature: Feature, on: Boolean): String {
+        val word = if (on) "enable" else "disable"
+        return when (feature) {
+            Feature.WIFI -> "svc wifi $word"
+            Feature.BLUETOOTH -> "svc bluetooth $word"
+            Feature.MOBILE_DATA -> "svc data $word"
+            Feature.NFC -> "svc nfc $word"
+            Feature.LOCATION ->
+                if (on) "cmd location set-location-enabled true || settings put secure location_mode 3"
+                else "cmd location set-location-enabled false || settings put secure location_mode 0"
+            // For privacy features "on" means the sensor is blocked.
+            Feature.CAMERA_PRIVACY -> "cmd sensor_privacy $word 0 camera"
+            Feature.MIC_PRIVACY -> "cmd sensor_privacy $word 0 microphone"
+        }
+    }
+}
+
 /** Reads the real system state with normal Android APIs. Returns null when Android will not say. */
 internal object SystemState {
     @Suppress("DEPRECATION")
@@ -114,26 +133,10 @@ internal object RootBackend : AutomationBackend {
     override fun supports(feature: Feature) = true
 
     override fun apply(feature: Feature, on: Boolean): String? {
-        val result = RootShell.run(command(feature, on))
+        val result = RootShell.run(FeatureCommands.command(feature, on))
         if (result.exitCode == 0) return null
         val detail = result.output.take(80)
         return "command failed (exit ${result.exitCode}${if (detail.isNotBlank()) ": $detail" else ""})"
-    }
-
-    private fun command(feature: Feature, on: Boolean): String {
-        val word = if (on) "enable" else "disable"
-        return when (feature) {
-            Feature.WIFI -> "svc wifi $word"
-            Feature.BLUETOOTH -> "svc bluetooth $word"
-            Feature.MOBILE_DATA -> "svc data $word"
-            Feature.NFC -> "svc nfc $word"
-            Feature.LOCATION ->
-                if (on) "cmd location set-location-enabled true || settings put secure location_mode 3"
-                else "cmd location set-location-enabled false || settings put secure location_mode 0"
-            // For privacy features "on" means the sensor is blocked.
-            Feature.CAMERA_PRIVACY -> "cmd sensor_privacy $word 0 camera"
-            Feature.MIC_PRIVACY -> "cmd sensor_privacy $word 0 microphone"
-        }
     }
 }
 
@@ -143,13 +146,15 @@ internal object Backends {
     fun mode(context: Context): String =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("backendMode", "auto") ?: "auto"
 
-    /** [probe] may run `su`, so only pass true from a background thread. */
+    /** [probe] may run `su` and talk to Shizuku, so only pass true from a background thread. */
     fun current(context: Context, probe: Boolean): AutomationBackend = when (mode(context)) {
         "standard" -> StandardBackend
         "root" -> RootBackend
-        else -> {
-            val root = if (probe) RootShell.isAvailable() else RootShell.cachedAvailable() == true
-            if (root) RootBackend else StandardBackend
+        "shizuku" -> ShizukuBackend
+        else -> when {
+            probe && ShizukuBridge.hasPermission() -> ShizukuBackend
+            (if (probe) RootShell.isAvailable() else RootShell.cachedAvailable() == true) -> RootBackend
+            else -> StandardBackend
         }
     }
 }
