@@ -99,31 +99,28 @@ private fun PrivacyFlipApp(context: Context, requestNotificationPermission: () -
         Scaffold(
             bottomBar = {
                 NavigationBar {
-                    NavItem("Home", Icons.Default.Home, page == Page.HOME) { page = Page.HOME }
-                    NavItem("Presets", Icons.Default.Tune, page == Page.PRESETS) { page = Page.PRESETS }
-                    NavItem("Rules", Icons.Default.AccountTree, page == Page.RULES) { page = Page.RULES }
-                    NavItem("Diagnostics", Icons.Default.FactCheck, page == Page.DIAGNOSTICS) { page = Page.DIAGNOSTICS }
+                    NavItem("Home", Icons.Default.Home, page == Page.HOME || page == Page.PRESETS || page == Page.RULES) { page = Page.HOME }
+                    NavItem("Activity", Icons.Default.FactCheck, page == Page.DIAGNOSTICS) { page = Page.DIAGNOSTICS }
                     NavItem("Settings", Icons.Default.Settings, page == Page.SETTINGS) { page = Page.SETTINGS }
                 }
             }
         ) { padding ->
             Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-                        Icon(Icons.Default.Shield, null, Modifier.padding(10.dp).size(28.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                    if (page == Page.PRESETS || page == Page.RULES) {
+                        TextButton(onClick = { page = Page.HOME }) {
+                            Icon(Icons.Default.ArrowBack, null)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Back")
+                        }
                     }
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Privacy Flip", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                        Text(if (language == "hi") "ऑफलाइन ऑटोमेशन" else "Offline-first automation", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    Spacer(Modifier.weight(1f))
                     IconButton(onClick = {
                         dark = !dark
                         store.setBool("darkTheme", dark)
                     }) { Icon(if (dark) Icons.Default.LightMode else Icons.Default.DarkMode, contentDescription = "Toggle theme") }
                 }
-                Spacer(Modifier.height(12.dp))
                 key(refreshCounter) {
                     when (page) {
                         Page.HOME -> HomePage(presets, store, language, onGoPresets = { page = Page.PRESETS }, onGoRules = { page = Page.RULES })
