@@ -17,7 +17,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -41,11 +43,13 @@ import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Activity: every logged step, newest first. */
+/** Activity: every logged step, newest first. Copy puts the whole log on the clipboard to paste elsewhere. */
 @Composable
 internal fun ActivityPage() {
     val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
     var logs by remember { mutableStateOf(readActivityLog(context)) }
+    var copied by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         while (true) {
             logs = readActivityLog(context)
@@ -58,8 +62,13 @@ internal fun ActivityPage() {
                 Text("Activity", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 if (logs.isNotEmpty()) {
                     TextButton(onClick = {
+                        clipboard.setText(AnnotatedString(logs.joinToString("\n")))
+                        copied = true
+                    }) { Text(if (copied) "Copied" else "Copy") }
+                    TextButton(onClick = {
                         clearActivityLog(context)
                         logs = emptyList()
+                        copied = false
                     }) { Text("Clear") }
                 }
             }
