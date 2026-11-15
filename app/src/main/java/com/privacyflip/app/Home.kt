@@ -40,28 +40,30 @@ import androidx.compose.ui.unit.dp
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Home is one clean column: the lock/unlock controls, then links to the extra automations. */
+/** Home: one master switch, then the connection status, the feature switches, a test and the latest activity. */
 @Composable
-internal fun HomePage(presets: List<Preset>, store: LocalStore, language: String, onGoPresets: () -> Unit, onGoRules: () -> Unit) {
+internal fun HomePage(store: LocalStore) {
     val context = LocalContext.current
+    var masterPaused by remember { mutableStateOf(store.getBool("masterPaused", false)) }
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 20.dp)) {
-        item { LockUnlockCard() }
-        item { QuickCard("More automations", "${presets.size} ready-made presets", Icons.Default.Tune, onGoPresets) }
-        item { QuickCard("Custom rules", "Your own IF-THEN rules", Icons.Default.AccountTree, onGoRules) }
-    }
-}
-
-@Composable
-internal fun QuickCard(title: String, subtitle: String, icon: ImageVector, onClick: () -> Unit) {
-    Card(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(26.dp))
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, fontWeight = FontWeight.SemiBold)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        item {
+            Card {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Protection", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(
+                            if (masterPaused) "Paused" else "Active",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(checked = !masterPaused, onCheckedChange = {
+                        masterPaused = !it
+                        store.setBool("masterPaused", masterPaused)
+                        AutomationScheduler.scheduleNext(context = context)
+                    })
+                }
             }
-            Icon(Icons.Default.ChevronRight, null)
         }
+        item { LockUnlockCard() }
     }
 }

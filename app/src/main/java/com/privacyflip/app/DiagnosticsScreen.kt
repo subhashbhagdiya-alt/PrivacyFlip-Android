@@ -3,7 +3,6 @@ package com.privacyflip.app
 import android.Manifest
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Build
 import android.net.Uri
@@ -38,44 +37,42 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Activity: a plain list of what really happened, newest first. */
+/** Activity: every logged step, newest first. */
 @Composable
-internal fun DiagnosticsPage(presets: List<Preset>, store: LocalStore, language: String) {
+internal fun ActivityPage() {
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("privacy_flip_local", Context.MODE_PRIVATE) }
-    var logs by remember { mutableStateOf(store.getEventLogs()) }
-    DisposableEffect(prefs) {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == "eventLog") logs = store.getEventLogs()
+    var logs by remember { mutableStateOf(readActivityLog(context)) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            logs = readActivityLog(context)
+            delay(1500L)
         }
-        prefs.registerOnSharedPreferenceChangeListener(listener)
-        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 20.dp)) {
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 20.dp)) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Activity", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                TextButton(onClick = {
-                    prefs.edit().remove("eventLog").apply()
-                    logs = emptyList()
-                }) { Text("Clear") }
+                Text("Activity", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                if (logs.isNotEmpty()) {
+                    TextButton(onClick = {
+                        clearActivityLog(context)
+                        logs = emptyList()
+                    }) { Text("Clear") }
+                }
             }
-        }
-        item {
-            Text(
-                "Newest first. Every line is a real result.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
         if (logs.isEmpty()) {
-            item { Text("Nothing yet. Lock and unlock your phone, or use Test in Advanced on Home.") }
-        } else {
-            items(logs.takeLast(60).reversed()) { entry ->
-                Text(entry, style = MaterialTheme.typography.bodySmall)
+            item {
+                Text(
+                    "Nothing yet. Switch a feature on, then lock and unlock the phone, or use Try it now on Home.",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
+        } else {
+            items(logs) { entry -> ActivityRow(entry) }
         }
     }
 }

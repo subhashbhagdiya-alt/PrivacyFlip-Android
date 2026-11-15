@@ -99,41 +99,47 @@ private fun PrivacyFlipApp(context: Context, requestNotificationPermission: () -
         Scaffold(
             bottomBar = {
                 NavigationBar {
-                    NavItem("Home", Icons.Default.Home, page == Page.HOME || page == Page.PRESETS || page == Page.RULES) { page = Page.HOME }
-                    NavItem("Activity", Icons.Default.FactCheck, page == Page.DIAGNOSTICS) { page = Page.DIAGNOSTICS }
-                    NavItem("Settings", Icons.Default.Settings, page == Page.SETTINGS) { page = Page.SETTINGS }
+                    NavItem("Home", Icons.Default.Home, page == Page.HOME) { page = Page.HOME }
+                    NavItem("Activity", Icons.Default.History, page == Page.DIAGNOSTICS) { page = Page.DIAGNOSTICS }
+                    NavItem(
+                        "Settings", Icons.Default.Settings,
+                        page == Page.SETTINGS || page == Page.PRESETS || page == Page.RULES
+                    ) { page = Page.SETTINGS }
                 }
             }
         ) { padding ->
             Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (page == Page.PRESETS || page == Page.RULES) {
-                        TextButton(onClick = { page = Page.HOME }) {
-                            Icon(Icons.Default.ArrowBack, null)
-                            Spacer(Modifier.width(6.dp))
-                            Text("Back")
-                        }
-                    }
-                    Spacer(Modifier.weight(1f))
+                    Text("Privacy Flip", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                     IconButton(onClick = {
                         dark = !dark
                         store.setBool("darkTheme", dark)
                     }) { Icon(if (dark) Icons.Default.LightMode else Icons.Default.DarkMode, contentDescription = "Toggle theme") }
                 }
+                if (page == Page.PRESETS || page == Page.RULES) {
+                    TextButton(onClick = { page = Page.SETTINGS }) {
+                        Icon(Icons.Default.ArrowBack, null)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Back to Settings")
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
                 key(refreshCounter) {
                     when (page) {
-                        Page.HOME -> HomePage(presets, store, language, onGoPresets = { page = Page.PRESETS }, onGoRules = { page = Page.RULES })
+                        Page.HOME -> HomePage(store)
                         Page.PRESETS -> PresetsPage(presets, store, selectedCategory, { selectedCategory = it }, search, { search = it }, language)
                         Page.RULES -> RulesPage(presets, store, language)
-                        Page.DIAGNOSTICS -> DiagnosticsPage(presets, store, language)
+                        Page.DIAGNOSTICS -> ActivityPage()
                         Page.SETTINGS -> SettingsPage(
                             dark, { dark = it; store.setBool("darkTheme", it) },
                             language, { language = it; store.setString("language", it) },
                             store, presets, { infoMessage = it },
                             onExport = { exportLauncher.launch("privacy-flip-backup.json") },
                             onImport = { importLauncher.launch(arrayOf("application/json", "text/*", "application/octet-stream")) },
-                            onRequestNotificationPermission = requestNotificationPermission
+                            onRequestNotificationPermission = requestNotificationPermission,
+                            onOpenPresets = { page = Page.PRESETS },
+                            onOpenRules = { page = Page.RULES }
                         )
                     }
                 }
