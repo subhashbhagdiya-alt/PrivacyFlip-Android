@@ -67,12 +67,23 @@ internal fun PermissionRow(title: String, detail: String, granted: Boolean, butt
 }
 
 @Composable
+private fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Card {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            content()
+        }
+    }
+}
+
+@Composable
 internal fun SettingsPage(
     dark: Boolean, onDark: (Boolean) -> Unit,
     language: String, onLanguage: (String) -> Unit,
     store: LocalStore, presets: List<Preset>, onMessage: (String) -> Unit,
     onExport: () -> Unit, onImport: () -> Unit,
-    onRequestNotificationPermission: () -> Unit
+    onRequestNotificationPermission: () -> Unit,
+    onOpenPresets: () -> Unit, onOpenRules: () -> Unit
 ) {
     val context = LocalContext.current
     var statusTick by remember { mutableIntStateOf(0) }
@@ -97,102 +108,146 @@ internal fun SettingsPage(
         (context.getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isIgnoringBatteryOptimizations(context.packageName) == true
     }
     var monitorOn by remember { mutableStateOf(store.getBool("monitorEnabled", true)) }
+    var mode by remember { mutableStateOf(store.getString("backendMode", "auto")) }
     val packageUri = Uri.parse("package:${context.packageName}")
 
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 20.dp)) {
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 20.dp)) {
         item {
-            Card {
-                Column(Modifier.padding(14.dp)) {
-                    Text("Appearance", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Dark theme", Modifier.weight(1f))
-                        Switch(checked = dark, onCheckedChange = onDark)
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Language / भाषा", Modifier.weight(1f))
-                        TextButton(onClick = { onLanguage("hi") }) { Text(if (language == "hi") "✓ हिंदी" else "हिंदी") }
-                        TextButton(onClick = { onLanguage("en") }) { Text(if (language == "en") "✓ English" else "English") }
+            SectionCard("Connection mode") {
+                Text(
+                    "Auto uses Shizuku first, then Root. None never changes system settings.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                    listOf("auto" to "Auto", "shizuku" to "Shizuku", "root" to "Root", "standard" to "None").forEach { (value, label) ->
+                        FilterChip(
+                            selected = mode == value,
+                            onClick = {
+                                mode = value
+                                store.setString("backendMode", value)
+                            },
+                            label = { Text(label, maxLines = 1) },
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             }
         }
         item {
-            Card {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Background monitor", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Keep triggers running", fontWeight = FontWeight.Medium)
-                            Text("Needed for screen, unlock, battery, network, headset, airplane and flip triggers. Shows one quiet notification.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Switch(checked = monitorOn, onCheckedChange = {
-                            monitorOn = it
-                            store.setBool("monitorEnabled", it)
-                            MonitorService.sync(context)
-                        })
+            SectionCard("Timing") {
+                var lockDelay by remember { mutableFloatStateOf(store.getInt("lockDelaySec", 0).toFloat()) }
+                Text("Wait after locking: ${lockDelay.toInt()} s", fontWeight = FontWeight.Medium)
+                Slider(
+                    value = lockDelay, onValueChange = { lockDelay = it },
+                    onValueChangeFinished = { store.setInt("lockDelaySec", lockDelay.toInt()) },
+                    valueRange = 0f..30f, steps = 29
+                )
+                var unlockDelay by remember { mutableFloatStateOf(store.getInt("unlockDelaySec", 0).toFloat()) }
+                Text("Wait after unlocking: ${unlockDelay.toInt()} s", fontWeight = FontWeight.Medium)
+                Slider(
+                    value = unlockDelay, onValueChange = { unlockDelay = it },
+                    onValueChangeFinished = { store.setInt("unlockDelaySec", unlockDelay.toInt()) },
+                    valueRange = 0f..10f, steps = 9
+                )
+                var restore by remember { mutableStateOf(store.getBool("restoreOriginal", false)) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Restore original state", fontWeight = FontWeight.Medium)
+                        Text(
+                            "On unlock, put each feature back to what it was before locking.",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
-                    PermissionRow("Battery optimization", "Set Privacy Flip to Unrestricted so the phone does not kill the monitor.", batteryOk, "Open battery settings") {
-                        openSettings(context, Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-                    }
+                    Switch(checked = restore, onCheckedChange = {
+                        restore = it
+                        store.setBool("restoreOriginal", it)
+                    })
                 }
             }
         }
         item {
-            Card {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Permissions for actions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("No root, Shizuku or ADB. Each permission is optional and only needed by the action named.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    PermissionRow("Notifications", "Notification actions and one-tap Wi-Fi/Bluetooth shortcuts.", notificationsOk, "Allow notifications") {
-                        onRequestNotificationPermission()
+            SectionCard("Background") {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Keep watching lock and unlock", fontWeight = FontWeight.Medium)
+                        Text(
+                            "Needed for lock, unlock and other triggers. Shows one quiet notification.",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
-                    PermissionRow("Do Not Disturb access", "Silent mode and Do Not Disturb actions.", dndOk, "Grant access") {
-                        openSettings(context, Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
-                    }
-                    PermissionRow("Modify system settings", "Brightness actions.", writeOk, "Grant access") {
-                        openSettings(context, Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, packageUri))
-                    }
-                    PermissionRow("Accessibility service", "Lock screen action. It reads nothing on screen. If Android greys it out, open App info, tap the three dots, then Allow restricted settings.", lockOk, "Open accessibility settings") {
-                        openSettings(context, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                    }
-                    PermissionRow("Exact alarms", "Daily schedules at the exact minute.", exactOk, "Grant access") {
-                        if (Build.VERSION.SDK_INT >= 31) openSettings(context, Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, packageUri))
-                    }
-                    var threshold by remember { mutableFloatStateOf(store.getInt("batteryThreshold", 20).toFloat()) }
-                    Text("Low battery trigger: ${threshold.toInt()}%", fontWeight = FontWeight.Medium)
-                    Slider(value = threshold, onValueChange = { threshold = it }, onValueChangeFinished = {
-                        store.setInt("batteryThreshold", threshold.toInt())
-                    }, valueRange = 5f..50f, steps = 8)
+                    Switch(checked = monitorOn, onCheckedChange = {
+                        monitorOn = it
+                        store.setBool("monitorEnabled", it)
+                        MonitorService.sync(context)
+                    })
+                }
+                PermissionRow("Battery optimization", "Set Privacy Flip to Unrestricted so the phone does not stop it.", batteryOk, "Open battery settings") {
+                    openSettings(context, Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
                 }
             }
         }
         item {
-            Card {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Backup & restore", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Export or import your settings as a local JSON file. No account or internet is needed.", style = MaterialTheme.typography.bodySmall)
-                    OutlinedButton(onClick = onExport, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.FileDownload, null); Spacer(Modifier.width(8.dp)); Text("Export backup JSON")
-                    }
-                    OutlinedButton(onClick = onImport, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.FileUpload, null); Spacer(Modifier.width(8.dp)); Text("Import backup JSON")
-                    }
+            SectionCard("Permissions for extra actions") {
+                Text(
+                    "Only needed for the presets and custom rules. Lock and unlock automation does not need them.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                PermissionRow("Notifications", "Notification actions and one-tap shortcuts.", notificationsOk, "Allow notifications") {
+                    onRequestNotificationPermission()
+                }
+                PermissionRow("Do Not Disturb access", "Silent mode and Do Not Disturb actions.", dndOk, "Grant access") {
+                    openSettings(context, Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
+                }
+                PermissionRow("Modify system settings", "Brightness actions.", writeOk, "Grant access") {
+                    openSettings(context, Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, packageUri))
+                }
+                PermissionRow("Accessibility service", "Lock screen action. It reads nothing on screen. If Android greys it out, open App info, tap the three dots, then Allow restricted settings.", lockOk, "Open accessibility settings") {
+                    openSettings(context, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                }
+                PermissionRow("Exact alarms", "Daily schedules at the exact minute.", exactOk, "Grant access") {
+                    if (Build.VERSION.SDK_INT >= 31) openSettings(context, Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, packageUri))
+                }
+                var threshold by remember { mutableFloatStateOf(store.getInt("batteryThreshold", 20).toFloat()) }
+                Text("Low battery trigger: ${threshold.toInt()}%", fontWeight = FontWeight.Medium)
+                Slider(value = threshold, onValueChange = { threshold = it }, onValueChangeFinished = {
+                    store.setInt("batteryThreshold", threshold.toInt())
+                }, valueRange = 5f..50f, steps = 8)
+            }
+        }
+        item {
+            SectionCard("Advanced automation") {
+                OutlinedButton(onClick = onOpenPresets, modifier = Modifier.fillMaxWidth()) { Text("Ready-made presets") }
+                OutlinedButton(onClick = onOpenRules, modifier = Modifier.fillMaxWidth()) { Text("Custom rules") }
+            }
+        }
+        item {
+            SectionCard("Appearance") {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Dark theme", Modifier.weight(1f))
+                    Switch(checked = dark, onCheckedChange = onDark)
                 }
             }
         }
         item {
-            Card {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Privacy & data", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("No account and no network permission. Everything stays on this device.", style = MaterialTheme.typography.bodySmall)
-                    OutlinedButton(onClick = {
-                        store.setBool("masterPaused", true)
-                        presets.forEach { p ->
-                            store.setBool("preset_${p.id}", false)
-                            p.actions.forEach { a -> store.setBool("action_${p.id}_${a.id}", false) }
-                        }
-                        onMessage("All local preset toggles reset.")
-                    }, modifier = Modifier.fillMaxWidth()) { Text("Reset preset toggles") }
+            SectionCard("Backup") {
+                Text(
+                    "Export or import your settings as a local file. No account or internet is needed.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedButton(onClick = onExport, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.FileDownload, null); Spacer(Modifier.width(8.dp)); Text("Export backup")
                 }
+                OutlinedButton(onClick = onImport, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.FileUpload, null); Spacer(Modifier.width(8.dp)); Text("Import backup")
+                }
+                OutlinedButton(onClick = {
+                    store.setBool("masterPaused", true)
+                    presets.forEach { p ->
+                        store.setBool("preset_${p.id}", false)
+                        p.actions.forEach { a -> store.setBool("action_${p.id}_${a.id}", false) }
+                    }
+                    onMessage("Presets switched off and protection paused.")
+                }, modifier = Modifier.fillMaxWidth()) { Text("Switch off all presets") }
             }
         }
     }
