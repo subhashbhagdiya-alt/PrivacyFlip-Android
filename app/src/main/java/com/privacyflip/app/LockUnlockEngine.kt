@@ -20,6 +20,11 @@ internal object LockUnlockEngine {
 
     /** Entry point for raw screen events coming from the monitor service. */
     fun onEvent(context: Context, event: String) {
+        if (event == "Screen turns off" || event == "Screen turns on" || event == "Phone unlocked") {
+            // Remembered for the system report: proves the monitor really receives these events.
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit().putLong("seen_$event", System.currentTimeMillis()).apply()
+        }
         when (event) {
             "Screen turns off" -> schedule(context, true)
             "Phone unlocked" -> schedule(context, false)

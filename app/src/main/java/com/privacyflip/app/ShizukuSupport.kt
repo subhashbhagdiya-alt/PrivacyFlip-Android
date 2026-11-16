@@ -42,12 +42,26 @@ internal object ShizukuBridge {
         false
     }
 
+    /** Short description for the system report, e.g. "uid 2000, API 13". */
+    fun describe(): String = try {
+        if (isRunning()) "uid ${Shizuku.getUid()}, API ${Shizuku.getVersion()}" else "no binder"
+    } catch (_: Throwable) {
+        "unknown"
+    }
+
     fun requestPermission() {
         try {
             if (isRunning() && !Shizuku.isPreV11()) Shizuku.requestPermission(PERMISSION_REQUEST_CODE)
         } catch (_: Throwable) {
             // Shizuku went away between the check and the request.
         }
+    }
+
+    /** Blocking. Returns null when the Shizuku user service is connected, otherwise the reason it is not. */
+    fun connectionTest(): String? {
+        if (!isRunning()) return "Shizuku is not running"
+        if (!hasPermission()) return "Shizuku permission not granted"
+        return if (service != null || bind() != null) null else "could not bind the Shizuku user service"
     }
 
     /** Blocking: call only from a background thread. Returns null on success or a failure reason. */

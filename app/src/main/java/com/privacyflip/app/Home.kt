@@ -65,5 +65,6 @@ internal fun HomePage(store: LocalStore) {
             }
         }
         item { LockUnlockCard() }
+        item { SystemCheckCard() }
     }
 }
