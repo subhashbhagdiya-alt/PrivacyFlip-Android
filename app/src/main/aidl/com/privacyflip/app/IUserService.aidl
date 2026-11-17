@@ -1,10 +1,16 @@
 package com.privacyflip.app;
 
-// Runs inside the Shizuku shell process. Only allow-listed feature keys are accepted, never free text.
+// Runs inside the Shizuku shell process. Only fixed, built-in tasks exist here: no method accepts free text.
 interface IUserService {
     // Destroy method required by Shizuku.
     void destroy() = 16777114;
 
-    // Returns "EXIT:<code>\n<output>".
+    // Switches one allow-listed feature. Returns "EXIT:<code>\n<output>".
     String apply(String featureKey, boolean on) = 1;
+
+    // Lets Privacy Flip keep running in the background (app ops, battery whitelist, standby bucket).
+    String keepAlive() = 2;
+
+    // Turns on Privacy Flip's own accessibility service without opening Settings.
+    String enableAccessibility() = 3;
 }

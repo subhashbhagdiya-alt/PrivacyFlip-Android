@@ -81,13 +81,31 @@ internal object ShizukuBridge {
         return "command failed (exit $code${if (detail.isNotBlank()) ": $detail" else ""})"
     }
 
+    /** Blocking. One line per step, each starting with OK or FAILED. */
+    fun keepAlive(): String = call { it.keepAlive() }
+
+    /** Blocking. Starts with OK or FAILED. */
+    fun enableAccessibility(): String = call { it.enableAccessibility() }
+
+    private fun call(block: (IUserService) -> String): String {
+        if (!isRunning()) return "FAILED Shizuku is not running"
+        if (!hasPermission()) return "FAILED Shizuku permission not granted"
+        val svc = service ?: bind() ?: return "FAILED could not connect to the Shizuku service"
+        return try {
+            block(svc)
+        } catch (e: Exception) {
+            service = null
+            "FAILED Shizuku call failed (${e.javaClass.simpleName})"
+        }
+    }
+
     private fun bind(): IUserService? {
         val waiter = CountDownLatch(1)
         latch = waiter
         val args = Shizuku.UserServiceArgs(ComponentName("com.privacyflip.app", UserService::class.java.name))
             .daemon(false)
             .processNameSuffix("shell")
-            .version(1)
+            .version(2)
         Shizuku.bindUserService(args, connection)
         waiter.await(6, TimeUnit.SECONDS)
         return service
