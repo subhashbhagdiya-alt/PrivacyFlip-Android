@@ -81,6 +81,14 @@ internal object ShizukuBridge {
         return "command failed (exit $code${if (detail.isNotBlank()) ": $detail" else ""})"
     }
 
+    /** Blocking. Returns null on success or a failure reason. */
+    fun setBrightness(value: Int, auto: Boolean): String? {
+        val raw = call { it.setBrightness(value, auto) }
+        if (raw.startsWith("FAILED")) return raw.removePrefix("FAILED").trim()
+        val code = raw.substringAfter("EXIT:").substringBefore("\n").toIntOrNull() ?: -1
+        return if (code == 0) null else "command failed (exit $code)"
+    }
+
     /** Blocking. One line per step, each starting with OK or FAILED. */
     fun keepAlive(): String = call { it.keepAlive() }
 
@@ -105,7 +113,7 @@ internal object ShizukuBridge {
         val args = Shizuku.UserServiceArgs(ComponentName("com.privacyflip.app", UserService::class.java.name))
             .daemon(false)
             .processNameSuffix("shell")
-            .version(2)
+            .version(3)
         Shizuku.bindUserService(args, connection)
         waiter.await(6, TimeUnit.SECONDS)
         return service
@@ -116,4 +124,5 @@ internal object ShizukuBackend : AutomationBackend {
     override val name = "Shizuku"
     override fun supports(feature: Feature) = true
     override fun apply(feature: Feature, on: Boolean): String? = ShizukuBridge.apply(feature, on)
+    override fun setBrightness(value: Int, auto: Boolean): String? = ShizukuBridge.setBrightness(value, auto)
 }

@@ -13,4 +13,7 @@ interface IUserService {
 
     // Turns on Privacy Flip's own accessibility service without opening Settings.
     String enableAccessibility() = 3;
+
+    // Sets the screen brightness mode (auto or manual) and level. Returns "EXIT:<code>\n<output>".
+    String setBrightness(int value, boolean auto) = 4;
 }

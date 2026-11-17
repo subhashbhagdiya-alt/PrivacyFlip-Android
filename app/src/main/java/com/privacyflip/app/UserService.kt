@@ -5,8 +5,8 @@ import kotlin.system.exitProcess
 
 /**
  * Instantiated by Shizuku inside its own shell-privileged process (not inside the app process).
- * It never runs free text: every command is either built from the fixed [FeatureCommands] table
- * or is one of the fixed maintenance tasks below.
+ * It never runs free text: every command is built from the fixed [FeatureCommands] table, from
+ * range-checked numbers, or is one of the fixed maintenance tasks below.
  */
 class UserService : IUserService.Stub() {
     override fun destroy() {
@@ -16,8 +16,17 @@ class UserService : IUserService.Stub() {
     override fun apply(featureKey: String, on: Boolean): String {
         val feature = Feature.values().firstOrNull { it.key == featureKey }
             ?: return "EXIT:-1\nunknown feature"
+        if (feature == Feature.BRIGHTNESS) return "EXIT:-1\nbrightness has its own method"
         val result = shell(FeatureCommands.command(feature, on))
         return "EXIT:${result.first}\n${result.second}"
+    }
+
+    override fun setBrightness(value: Int, auto: Boolean): String {
+        if (value < 0 || value > 4095) return "EXIT:-1\nbrightness out of range"
+        val mode = shell("settings put system screen_brightness_mode ${if (auto) 1 else 0}")
+        if (mode.first != 0 || auto) return "EXIT:${mode.first}\n${mode.second}"
+        val level = shell("settings put system screen_brightness $value")
+        return "EXIT:${level.first}\n${level.second}"
     }
 
     override fun keepAlive(): String {

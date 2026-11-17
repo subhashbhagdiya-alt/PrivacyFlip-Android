@@ -14,14 +14,15 @@ internal enum class Feature(
     val key: String,
     val title: String,
     val description: String,
-    /** State wanted while locked: true = ON (privacy protection enabled), false = OFF (radio off). */
+    /** State wanted while locked: true = ON (privacy protection enabled / dimmed), false = OFF (radio off). */
     val lockTarget: Boolean
 ) {
     WIFI("wifi", "Wi-Fi", "Off while locked, on after unlock", false),
-    BLUETOOTH("bluetooth", "Bluetooth", "Off while locked, on after unlock", false),
+    BLUETOOTH("bluetooth", "Bluetooth", "Off while locked (stays on while sound plays), on after unlock", false),
     LOCATION("location", "Location", "Off while locked, on after unlock", false),
     MOBILE_DATA("mobile_data", "Mobile data", "Off while locked, on after unlock", false),
     NFC("nfc", "NFC", "Off while locked, on after unlock", false),
+    BRIGHTNESS("brightness", "Screen brightness", "Lowest while locked, back to normal after unlock", true),
     CAMERA_PRIVACY("camera_privacy", "Camera privacy", "Blocked while locked, allowed after unlock", true),
     MIC_PRIVACY("mic_privacy", "Microphone privacy", "Blocked while locked, allowed after unlock", true);
 
@@ -46,6 +47,7 @@ internal object FeatureCommands {
             // For privacy features "on" means the sensor is blocked.
             Feature.CAMERA_PRIVACY -> "cmd sensor_privacy $word 0 camera"
             Feature.MIC_PRIVACY -> "cmd sensor_privacy $word 0 microphone"
+            Feature.BRIGHTNESS -> throw IllegalArgumentException("Brightness is set through BrightnessControl, not a shell command")
         }
     }
 }
@@ -63,7 +65,7 @@ internal object SystemState {
                 else null
             Feature.MOBILE_DATA -> (app.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager)?.isDataEnabled
             Feature.NFC -> NfcAdapter.getDefaultAdapter(app)?.isEnabled
-            Feature.CAMERA_PRIVACY, Feature.MIC_PRIVACY -> null
+            Feature.BRIGHTNESS, Feature.CAMERA_PRIVACY, Feature.MIC_PRIVACY -> null
         }
     } catch (_: Exception) {
         null
@@ -76,6 +78,9 @@ internal interface AutomationBackend {
 
     /** Returns null when the command was accepted, otherwise a short failure reason. */
     fun apply(feature: Feature, on: Boolean): String?
+
+    /** Sets the screen brightness mode and level. Returns null on success, otherwise a reason. */
+    fun setBrightness(value: Int, auto: Boolean): String? = "needs Shizuku, Root or the Modify system settings permission"
 }
 
 /** No root: Android does not let normal apps change these settings, so nothing is claimed. */
@@ -137,6 +142,15 @@ internal object RootBackend : AutomationBackend {
         if (result.exitCode == 0) return null
         val detail = result.output.take(80)
         return "command failed (exit ${result.exitCode}${if (detail.isNotBlank()) ": $detail" else ""})"
+    }
+
+    override fun setBrightness(value: Int, auto: Boolean): String? {
+        val level = value.coerceIn(0, 4095)
+        val mode = RootShell.run("settings put system screen_brightness_mode ${if (auto) 1 else 0}")
+        if (mode.exitCode != 0) return "command failed (exit ${mode.exitCode})"
+        if (auto) return null
+        val result = RootShell.run("settings put system screen_brightness $level")
+        return if (result.exitCode == 0) null else "command failed (exit ${result.exitCode})"
     }
 }
 
