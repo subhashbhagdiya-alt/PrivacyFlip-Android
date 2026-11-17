@@ -37,6 +37,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -86,6 +90,7 @@ internal fun SettingsPage(
     onOpenPresets: () -> Unit, onOpenRules: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var statusTick by remember { mutableIntStateOf(0) }
     DisposableEffect(context) {
         val lifecycle = (context as? ComponentActivity)?.lifecycle
@@ -104,14 +109,79 @@ internal fun SettingsPage(
     val exactOk = remember(statusTick) {
         Build.VERSION.SDK_INT < 31 || (context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager)?.canScheduleExactAlarms() == true
     }
-    val batteryOk = remember(statusTick) {
-        (context.getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isIgnoringBatteryOptimizations(context.packageName) == true
+    val batteryOk = remember(statusTick) { KeepAlive.isIgnoringBatteryOptimizations(context) }
+    var shizukuReady by remember { mutableStateOf(false) }
+    LaunchedEffect(statusTick) {
+        shizukuReady = withContext(Dispatchers.IO) { ShizukuBridge.hasPermission() }
     }
     var monitorOn by remember { mutableStateOf(store.getBool("monitorEnabled", true)) }
     var mode by remember { mutableStateOf(store.getString("backendMode", "auto")) }
+    var more by remember { mutableStateOf(false) }
     val packageUri = Uri.parse("package:${context.packageName}")
 
+    val boost: () -> Unit = {
+        scope.launch {
+            val result = withContext(Dispatchers.IO) { ShizukuBridge.keepAlive() }
+            AutomationEventProcessor.appendLog(context, "Keep-alive: " + result.replace("\n", "; "))
+            val steps = result.lines().filter { it.isNotBlank() }
+            onMessage("Boost applied: ${steps.count { it.startsWith("OK") }} of ${steps.size} steps OK")
+        }
+    }
+    val enableAccessibility: () -> Unit = {
+        scope.launch {
+            val result = withContext(Dispatchers.IO) { ShizukuBridge.enableAccessibility() }
+            AutomationEventProcessor.appendLog(context, "Keep-alive: $result")
+            onMessage(result.take(100))
+            delay(1500L)
+            statusTick++
+        }
+    }
+
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 20.dp)) {
+        item {
+            SectionCard("Keep running") {
+                Text(
+                    "Some phones, including iQOO, stop background apps. These steps keep lock and unlock automation alive.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Watch lock and unlock", fontWeight = FontWeight.Medium)
+                        Text(
+                            "Shows one quiet notification while it runs.",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(checked = monitorOn, onCheckedChange = {
+                        monitorOn = it
+                        store.setBool("monitorEnabled", it)
+                        MonitorService.sync(context)
+                    })
+                }
+                PermissionRow("Background battery use", "Allow Privacy Flip to keep running.", batteryOk, "Allow") {
+                    KeepAlive.requestIgnoreBatteryOptimizations(context)
+                }
+                PermissionRow(
+                    "Extra reliable mode",
+                    "The system keeps this service alive and it watches lock and unlock too. It reads nothing on screen.",
+                    lockOk,
+                    if (shizukuReady) "Turn on with Shizuku" else "Open accessibility settings"
+                ) {
+                    if (shizukuReady) enableAccessibility()
+                    else openSettings(context, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                }
+                OutlinedButton(onClick = boost, enabled = shizukuReady, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (shizukuReady) "Boost with Shizuku" else "Boost with Shizuku (connect Shizuku first)")
+                }
+                OutlinedButton(onClick = { KeepAlive.openVendorBackgroundSettings(context) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Open phone background settings")
+                }
+                Text(
+                    "On iQOO also: open Recent apps, long-press the Privacy Flip card and choose Lock. Do not swipe it away.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
         item {
             SectionCard("Connection mode") {
                 Text(
@@ -166,88 +236,71 @@ internal fun SettingsPage(
             }
         }
         item {
-            SectionCard("Background") {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Keep watching lock and unlock", fontWeight = FontWeight.Medium)
-                        Text(
-                            "Needed for lock, unlock and other triggers. Shows one quiet notification.",
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(checked = monitorOn, onCheckedChange = {
-                        monitorOn = it
-                        store.setBool("monitorEnabled", it)
-                        MonitorService.sync(context)
-                    })
-                }
-                PermissionRow("Battery optimization", "Set Privacy Flip to Unrestricted so the phone does not stop it.", batteryOk, "Open battery settings") {
-                    openSettings(context, Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-                }
-            }
-        }
-        item {
-            SectionCard("Permissions for extra actions") {
-                Text(
-                    "Only needed for the presets and custom rules. Lock and unlock automation does not need them.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                PermissionRow("Notifications", "Notification actions and one-tap shortcuts.", notificationsOk, "Allow notifications") {
-                    onRequestNotificationPermission()
-                }
-                PermissionRow("Do Not Disturb access", "Silent mode and Do Not Disturb actions.", dndOk, "Grant access") {
-                    openSettings(context, Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
-                }
-                PermissionRow("Modify system settings", "Brightness actions.", writeOk, "Grant access") {
-                    openSettings(context, Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, packageUri))
-                }
-                PermissionRow("Accessibility service", "Lock screen action. It reads nothing on screen. If Android greys it out, open App info, tap the three dots, then Allow restricted settings.", lockOk, "Open accessibility settings") {
-                    openSettings(context, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                }
-                PermissionRow("Exact alarms", "Daily schedules at the exact minute.", exactOk, "Grant access") {
-                    if (Build.VERSION.SDK_INT >= 31) openSettings(context, Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, packageUri))
-                }
-                var threshold by remember { mutableFloatStateOf(store.getInt("batteryThreshold", 20).toFloat()) }
-                Text("Low battery trigger: ${threshold.toInt()}%", fontWeight = FontWeight.Medium)
-                Slider(value = threshold, onValueChange = { threshold = it }, onValueChangeFinished = {
-                    store.setInt("batteryThreshold", threshold.toInt())
-                }, valueRange = 5f..50f, steps = 8)
-            }
-        }
-        item {
-            SectionCard("Advanced automation") {
-                OutlinedButton(onClick = onOpenPresets, modifier = Modifier.fillMaxWidth()) { Text("Ready-made presets") }
-                OutlinedButton(onClick = onOpenRules, modifier = Modifier.fillMaxWidth()) { Text("Custom rules") }
-            }
-        }
-        item {
             SectionCard("Appearance") {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Dark theme", Modifier.weight(1f))
                     Switch(checked = dark, onCheckedChange = onDark)
                 }
+                Text(
+                    "Tip: add the Privacy Flip tile to Quick Settings to pause or resume protection from the pull-down panel.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
         item {
-            SectionCard("Backup") {
-                Text(
-                    "Export or import your settings as a local file. No account or internet is needed.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                OutlinedButton(onClick = onExport, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.FileDownload, null); Spacer(Modifier.width(8.dp)); Text("Export backup")
-                }
-                OutlinedButton(onClick = onImport, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.FileUpload, null); Spacer(Modifier.width(8.dp)); Text("Import backup")
-                }
-                OutlinedButton(onClick = {
-                    store.setBool("masterPaused", true)
-                    presets.forEach { p ->
-                        store.setBool("preset_${p.id}", false)
-                        p.actions.forEach { a -> store.setBool("action_${p.id}_${a.id}", false) }
+            OutlinedButton(onClick = { more = !more }, modifier = Modifier.fillMaxWidth()) {
+                Text(if (more) "Hide more settings" else "More settings")
+            }
+        }
+        if (more) {
+            item {
+                SectionCard("Extra permissions") {
+                    Text(
+                        "Only needed for presets and custom rules. Lock and unlock automation does not need them.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    PermissionRow("Notifications", "Notification actions and one-tap shortcuts.", notificationsOk, "Allow notifications") {
+                        onRequestNotificationPermission()
                     }
-                    onMessage("Presets switched off and protection paused.")
-                }, modifier = Modifier.fillMaxWidth()) { Text("Switch off all presets") }
+                    PermissionRow("Do Not Disturb access", "Silent mode and Do Not Disturb actions.", dndOk, "Grant access") {
+                        openSettings(context, Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
+                    }
+                    PermissionRow("Modify system settings", "Brightness actions.", writeOk, "Grant access") {
+                        openSettings(context, Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, packageUri))
+                    }
+                    PermissionRow("Exact alarms", "Daily schedules at the exact minute.", exactOk, "Grant access") {
+                        if (Build.VERSION.SDK_INT >= 31) openSettings(context, Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, packageUri))
+                    }
+                    var threshold by remember { mutableFloatStateOf(store.getInt("batteryThreshold", 20).toFloat()) }
+                    Text("Low battery trigger: ${threshold.toInt()}%", fontWeight = FontWeight.Medium)
+                    Slider(value = threshold, onValueChange = { threshold = it }, onValueChangeFinished = {
+                        store.setInt("batteryThreshold", threshold.toInt())
+                    }, valueRange = 5f..50f, steps = 8)
+                }
+            }
+            item {
+                SectionCard("Advanced automation") {
+                    OutlinedButton(onClick = onOpenPresets, modifier = Modifier.fillMaxWidth()) { Text("Ready-made presets") }
+                    OutlinedButton(onClick = onOpenRules, modifier = Modifier.fillMaxWidth()) { Text("Custom rules") }
+                }
+            }
+            item {
+                SectionCard("Backup") {
+                    OutlinedButton(onClick = onExport, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.FileDownload, null); Spacer(Modifier.width(8.dp)); Text("Export backup")
+                    }
+                    OutlinedButton(onClick = onImport, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.FileUpload, null); Spacer(Modifier.width(8.dp)); Text("Import backup")
+                    }
+                    OutlinedButton(onClick = {
+                        store.setBool("masterPaused", true)
+                        presets.forEach { p ->
+                            store.setBool("preset_${p.id}", false)
+                            p.actions.forEach { a -> store.setBool("action_${p.id}_${a.id}", false) }
+                        }
+                        onMessage("Presets switched off and protection paused.")
+                    }, modifier = Modifier.fillMaxWidth()) { Text("Switch off all presets") }
+                }
             }
         }
     }

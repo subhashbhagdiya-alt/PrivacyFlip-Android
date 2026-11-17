@@ -17,11 +17,12 @@ internal object LockUnlockEngine {
     private const val PREFS = "privacy_flip_local"
     private val scheduler = Executors.newSingleThreadScheduledExecutor()
     private var pending: ScheduledFuture<*>? = null
+    private var wakeLock: PowerManager.WakeLock? = null
 
-    /** Entry point for raw screen events coming from the monitor service. */
+    /** Entry point for raw screen events coming from the monitor service or the accessibility service. */
     fun onEvent(context: Context, event: String) {
         if (event == "Screen turns off" || event == "Screen turns on" || event == "Phone unlocked") {
-            // Remembered for the system report: proves the monitor really receives these events.
+            // Remembered for the system report: proves the app really receives these events.
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .edit().putLong("seen_$event", System.currentTimeMillis()).apply()
         }
@@ -39,6 +40,7 @@ internal object LockUnlockEngine {
     /** Runs a lock or unlock pass right now (Test buttons). Skips screen-state checks, same steps otherwise. */
     fun runNow(context: Context, locked: Boolean) {
         val app = context.applicationContext
+        holdAwake(app, 30_000L)
         scheduler.execute { execute(app, locked, true) }
     }
 
@@ -49,9 +51,27 @@ internal object LockUnlockEngine {
         if (prefs.getBoolean("masterPaused", false)) return
         if (Feature.values().none { prefs.getBoolean(it.enabledKey, false) }) return
         val delaySec = prefs.getInt(if (locked) "lockDelaySec" else "unlockDelaySec", 0)
+        // The screen is about to be off: without this the CPU can sleep before the pass finishes.
+        holdAwake(app, delaySec * 1000L + 30_000L)
         // A newer event replaces an older one that has not started yet (prevents races).
         pending?.cancel(false)
         pending = scheduler.schedule(Runnable { execute(app, locked, false) }, delaySec * 1000L, TimeUnit.MILLISECONDS)
+    }
+
+    /** Keeps the CPU awake for [ms]. The timeout releases it, so it can never be left on. */
+    @Synchronized
+    private fun holdAwake(context: Context, ms: Long) {
+        try {
+            val lock = wakeLock ?: (context.getSystemService(Context.POWER_SERVICE) as PowerManager)
+                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "PrivacyFlip:automation")
+                .also {
+                    it.setReferenceCounted(false)
+                    wakeLock = it
+                }
+            lock.acquire(ms)
+        } catch (_: Exception) {
+            // Running without the wake lock is still better than not running.
+        }
     }
 
     private fun execute(context: Context, locked: Boolean, force: Boolean) {
@@ -76,8 +96,12 @@ internal object LockUnlockEngine {
         if (!force) {
             val power = context.getSystemService(Context.POWER_SERVICE) as PowerManager
             if (locked && power.isInteractive) {
-                log(context, "Lock skipped: the screen is on again")
-                return
+                // The screen-off broadcast can arrive a moment before the screen is fully off.
+                Thread.sleep(400L)
+                if (power.isInteractive) {
+                    log(context, "Lock skipped: the screen is on again")
+                    return
+                }
             }
             if (!locked && !power.isInteractive) {
                 log(context, "Unlock skipped: the screen is off")

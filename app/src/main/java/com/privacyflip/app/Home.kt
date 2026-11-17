@@ -37,14 +37,23 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Home: one master switch, then the connection status, the feature switches, a test and the latest activity. */
+/** Home: one master switch, a warning if the phone may stop the app, then connection, switches, test and activity. */
 @Composable
 internal fun HomePage(store: LocalStore) {
     val context = LocalContext.current
     var masterPaused by remember { mutableStateOf(store.getBool("masterPaused", false)) }
+    var tick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(2000L)
+            tick++
+        }
+    }
+    val batteryOk = remember(tick) { KeepAlive.isIgnoringBatteryOptimizations(context) }
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 20.dp)) {
         item {
             Card {
@@ -61,6 +70,22 @@ internal fun HomePage(store: LocalStore) {
                         store.setBool("masterPaused", masterPaused)
                         AutomationScheduler.scheduleNext(context = context)
                     })
+                }
+            }
+        }
+        if (!batteryOk) {
+            item {
+                Card {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Background use is restricted", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(
+                            "The phone may stop Privacy Flip after a while, and then lock and unlock stop working. Allow it to run in the background. More options are in Settings under Keep running.",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Button(onClick = { KeepAlive.requestIgnoreBatteryOptimizations(context) }, modifier = Modifier.fillMaxWidth()) {
+                            Text("Allow background use")
+                        }
+                    }
                 }
             }
         }
