@@ -30,13 +30,16 @@ private fun iconFor(feature: Feature): ImageVector = when (feature) {
     Feature.LOCATION -> Icons.Default.LocationOn
     Feature.MOBILE_DATA -> Icons.Default.SignalCellularAlt
     Feature.NFC -> Icons.Default.Nfc
+    Feature.BRIGHTNESS -> Icons.Default.BrightnessLow
     Feature.CAMERA_PRIVACY -> Icons.Default.CameraAlt
     Feature.MIC_PRIVACY -> Icons.Default.MicOff
 }
 
-private fun ruleText(feature: Feature): String {
-    val base = if (feature.lockTarget) "On when locked, off when unlocked" else "Off when locked, on when unlocked"
-    return if (feature == Feature.CAMERA_PRIVACY || feature == Feature.MIC_PRIVACY) "$base · experimental" else base
+private fun ruleText(feature: Feature): String = when (feature) {
+    Feature.BRIGHTNESS -> "Lowest when locked, normal again when unlocked"
+    Feature.BLUETOOTH -> "Off when locked (not while sound plays), on when unlocked"
+    Feature.CAMERA_PRIVACY, Feature.MIC_PRIVACY -> "On when locked, off when unlocked · experimental"
+    else -> "Off when locked, on when unlocked"
 }
 
 private fun openShizuku(context: Context) {
@@ -116,6 +119,8 @@ internal fun LockUnlockCard() {
         "shizuku" -> viaShizuku
         else -> viaShizuku || viaRoot
     }
+    // Brightness can also be changed directly when the "Modify system settings" permission is given.
+    val canDim = BrightnessControl.canWriteDirectly(context)
     val title: String
     val message: String
     val action: Pair<String, () -> Unit>?
@@ -172,8 +177,13 @@ internal fun LockUnlockCard() {
         Card {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Switch on lock and unlock", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    "Works only on what is on right now. A setting you keep off on the phone stays off, and only what Privacy Flip turned off is turned back on.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Feature.values().forEach { feature ->
                     var enabled by remember { mutableStateOf(prefs.getBoolean(feature.enabledKey, false)) }
+                    val usable = connected || (feature == Feature.BRIGHTNESS && canDim)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(iconFor(feature), null, tint = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.width(12.dp))
@@ -181,7 +191,7 @@ internal fun LockUnlockCard() {
                             Text(feature.title, fontWeight = FontWeight.Medium)
                             Text(ruleText(feature), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Switch(checked = enabled, enabled = connected, onCheckedChange = {
+                        Switch(checked = enabled, enabled = usable, onCheckedChange = {
                             enabled = it
                             prefs.edit().putBoolean(feature.enabledKey, it).apply()
                         })
@@ -198,10 +208,10 @@ internal fun LockUnlockCard() {
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { LockUnlockEngine.runNow(context, true) }, enabled = connected, modifier = Modifier.weight(1f)) {
+                    OutlinedButton(onClick = { LockUnlockEngine.runNow(context, true) }, enabled = connected || canDim, modifier = Modifier.weight(1f)) {
                         Text("Test lock")
                     }
-                    OutlinedButton(onClick = { LockUnlockEngine.runNow(context, false) }, enabled = connected, modifier = Modifier.weight(1f)) {
+                    OutlinedButton(onClick = { LockUnlockEngine.runNow(context, false) }, enabled = connected || canDim, modifier = Modifier.weight(1f)) {
                         Text("Test unlock")
                     }
                 }

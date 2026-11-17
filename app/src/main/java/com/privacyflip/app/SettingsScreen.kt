@@ -219,20 +219,6 @@ internal fun SettingsPage(
                     onValueChangeFinished = { store.setInt("unlockDelaySec", unlockDelay.toInt()) },
                     valueRange = 0f..10f, steps = 9
                 )
-                var restore by remember { mutableStateOf(store.getBool("restoreOriginal", false)) }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Restore original state", fontWeight = FontWeight.Medium)
-                        Text(
-                            "On unlock, put each feature back to what it was before locking.",
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(checked = restore, onCheckedChange = {
-                        restore = it
-                        store.setBool("restoreOriginal", it)
-                    })
-                }
             }
         }
         item {
@@ -256,17 +242,17 @@ internal fun SettingsPage(
             item {
                 SectionCard("Extra permissions") {
                     Text(
-                        "Only needed for presets and custom rules. Lock and unlock automation does not need them.",
+                        "Brightness works without Shizuku if you allow Modify system settings. The others are only for presets and custom rules.",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    PermissionRow("Modify system settings", "Lets brightness change without Shizuku.", writeOk, "Grant access") {
+                        openSettings(context, Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, packageUri))
+                    }
                     PermissionRow("Notifications", "Notification actions and one-tap shortcuts.", notificationsOk, "Allow notifications") {
                         onRequestNotificationPermission()
                     }
                     PermissionRow("Do Not Disturb access", "Silent mode and Do Not Disturb actions.", dndOk, "Grant access") {
                         openSettings(context, Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
-                    }
-                    PermissionRow("Modify system settings", "Brightness actions.", writeOk, "Grant access") {
-                        openSettings(context, Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, packageUri))
                     }
                     PermissionRow("Exact alarms", "Daily schedules at the exact minute.", exactOk, "Grant access") {
                         if (Build.VERSION.SDK_INT >= 31) openSettings(context, Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, packageUri))
