@@ -6,6 +6,9 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/** Brightness is set through BrightnessControl, so it has no shell command. */
+private val shellFeatures = Feature.values().filter { it != Feature.BRIGHTNESS }
+
 class FeatureTest {
     @Test
     fun keysAreUniqueAndStorageKeysAreDerivedFromThem() {
@@ -24,10 +27,10 @@ class FeatureTest {
     }
 
     @Test
-    fun connectivityTurnsOffWhenLockedAndPrivacyTurnsOn() {
+    fun connectivityTurnsOffWhenLockedAndPrivacyAndDimmingTurnOn() {
         listOf(Feature.WIFI, Feature.BLUETOOTH, Feature.LOCATION, Feature.MOBILE_DATA, Feature.NFC)
             .forEach { assertFalse("${it.title} should be OFF when locked", it.lockTarget) }
-        listOf(Feature.CAMERA_PRIVACY, Feature.MIC_PRIVACY)
+        listOf(Feature.CAMERA_PRIVACY, Feature.MIC_PRIVACY, Feature.BRIGHTNESS)
             .forEach { assertTrue("${it.title} should be ON when locked", it.lockTarget) }
     }
 }
@@ -36,8 +39,8 @@ class FeatureCommandsTest {
     private val allowedStarts = listOf("svc ", "cmd ", "settings ")
 
     @Test
-    fun everyFeatureHasADifferentCommandForOnAndOff() {
-        Feature.values().forEach {
+    fun everyShellFeatureHasADifferentCommandForOnAndOff() {
+        shellFeatures.forEach {
             assertNotEquals(
                 "${it.title} on/off commands must differ",
                 FeatureCommands.command(it, true), FeatureCommands.command(it, false)
@@ -47,7 +50,7 @@ class FeatureCommandsTest {
 
     @Test
     fun commandsStayInsideTheAllowList() {
-        Feature.values().forEach { feature ->
+        shellFeatures.forEach { feature ->
             listOf(true, false).forEach { on ->
                 val command = FeatureCommands.command(feature, on)
                 assertTrue("empty command for ${feature.title}", command.isNotBlank())
