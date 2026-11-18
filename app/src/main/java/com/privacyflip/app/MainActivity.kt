@@ -18,6 +18,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -111,6 +113,12 @@ private fun PrivacyFlipApp(context: Context, requestNotificationPermission: () -
             Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
                 Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    Image(
+                        painter = painterResource(R.drawable.ic_logo_mark),
+                        contentDescription = "Privacy Flip logo",
+                        modifier = Modifier.size(width = 26.dp, height = 32.dp)
+                    )
+                    Spacer(Modifier.width(10.dp))
                     Text("Privacy Flip", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                     IconButton(onClick = {
                         dark = !dark
