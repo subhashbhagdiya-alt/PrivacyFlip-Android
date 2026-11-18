@@ -20,11 +20,16 @@ Screen off/on, phone unlocked, charger connected/disconnected, battery below you
 
 The Settings tab shows each permission with a button to grant it, and Diagnostics shows what is and is not ready. 11 ready-made presets cover the common cases, and the Rules tab builds custom IF-THEN rules.
 
-## Lock / Unlock automation (Stage 1)
+## Lock / Unlock automation
 
 One switch per feature on Home: Wi-Fi, Bluetooth, Location, Mobile data and NFC turn OFF when the phone locks and ON when it unlocks; camera and microphone privacy turn ON when locked and OFF when unlocked. Optional lock/unlock delays and a "restore original state" mode.
 
-Android does not let normal apps change these settings, so the switches need **Root** (a Shizuku backend is planned). Without Root they are saved but skipped, and the activity log says so. Every step reads the real state, saves the original, applies the change, verifies it and logs the true result. Camera/microphone privacy is experimental and cannot be verified, so it is logged as "unverified". A failed step leaves a recovery record that the next unlock retries.
+Android does not let normal apps change these settings, so they run through one of two backends:
+
+- **Shizuku** (no root): install the Shizuku app, start it with Wireless debugging, and grant Privacy Flip permission from the Home card. It must be started again after each reboot.
+- **Root**: uses `su`.
+
+**Auto** mode picks Shizuku, then Root. Without either, the switches are saved but skipped, and the activity log says so. Only a fixed table of commands is ever run, never free text. Every step reads the real state, saves the original, applies the change, verifies it and logs the true result. Camera/microphone privacy is experimental and cannot be verified, so it is logged as "unverified". A failed step leaves a recovery record that the next unlock retries.
 
 ## What cannot work without root or Shizuku
 
@@ -41,4 +46,4 @@ JDK 17, Gradle 8.9 and Android SDK 35. Run `./tools/build_debug_apk.sh`, or open
 
 ## Status
 
-Version 0.3.0. Needs real-device testing: trigger delivery after the phone kills background apps, exact-alarm timing, the accessibility lock action, and the Root commands on your phone. Treat an action as working only after you have seen it log success in Diagnostics.
+Version 0.4.0. Needs real-device testing: trigger delivery after the phone kills background apps, exact-alarm timing, the accessibility lock action, and the Shizuku/Root commands on your phone. Treat an action as working only after you have seen it log success in Activity.

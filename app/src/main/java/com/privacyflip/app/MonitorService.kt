@@ -130,7 +130,7 @@ class MonitorService : Service() {
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
             val notification = Notification.Builder(this, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
+                .setSmallIcon(R.drawable.ic_stat_shield)
                 .setContentTitle("Privacy Flip is watching your triggers")
                 .setContentText("Rules run offline on this device. Tap to open.")
                 .setContentIntent(openApp)

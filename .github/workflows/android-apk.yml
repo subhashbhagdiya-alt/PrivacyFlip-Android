@@ -27,6 +27,8 @@ jobs:
           gradle-version: '8.9'
       - name: Verify source structure
         run: python3 tools/verify_source.py
+      - name: Run unit tests
+        run: gradle testDebugUnitTest --stacktrace
       - name: Build debug APK
         run: gradle assembleDebug --stacktrace
       - uses: actions/upload-artifact@v4

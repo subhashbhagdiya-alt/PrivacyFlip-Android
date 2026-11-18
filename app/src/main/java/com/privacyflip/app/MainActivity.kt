@@ -18,6 +18,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -100,43 +102,52 @@ private fun PrivacyFlipApp(context: Context, requestNotificationPermission: () -
             bottomBar = {
                 NavigationBar {
                     NavItem("Home", Icons.Default.Home, page == Page.HOME) { page = Page.HOME }
-                    NavItem("Presets", Icons.Default.Tune, page == Page.PRESETS) { page = Page.PRESETS }
-                    NavItem("Rules", Icons.Default.AccountTree, page == Page.RULES) { page = Page.RULES }
-                    NavItem("Diagnostics", Icons.Default.FactCheck, page == Page.DIAGNOSTICS) { page = Page.DIAGNOSTICS }
-                    NavItem("Settings", Icons.Default.Settings, page == Page.SETTINGS) { page = Page.SETTINGS }
+                    NavItem("Activity", Icons.Default.History, page == Page.DIAGNOSTICS) { page = Page.DIAGNOSTICS }
+                    NavItem(
+                        "Settings", Icons.Default.Settings,
+                        page == Page.SETTINGS || page == Page.PRESETS || page == Page.RULES
+                    ) { page = Page.SETTINGS }
                 }
             }
         ) { padding ->
             Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-                        Icon(Icons.Default.Shield, null, Modifier.padding(10.dp).size(28.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Privacy Flip", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                        Text(if (language == "hi") "ऑफलाइन ऑटोमेशन" else "Offline-first automation", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    Image(
+                        painter = painterResource(R.drawable.ic_logo_mark),
+                        contentDescription = "Privacy Flip logo",
+                        modifier = Modifier.size(width = 26.dp, height = 32.dp)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text("Privacy Flip", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                     IconButton(onClick = {
                         dark = !dark
                         store.setBool("darkTheme", dark)
                     }) { Icon(if (dark) Icons.Default.LightMode else Icons.Default.DarkMode, contentDescription = "Toggle theme") }
                 }
-                Spacer(Modifier.height(12.dp))
+                if (page == Page.PRESETS || page == Page.RULES) {
+                    TextButton(onClick = { page = Page.SETTINGS }) {
+                        Icon(Icons.Default.ArrowBack, null)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Back to Settings")
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
                 key(refreshCounter) {
                     when (page) {
-                        Page.HOME -> HomePage(presets, store, language, onGoPresets = { page = Page.PRESETS }, onGoRules = { page = Page.RULES })
+                        Page.HOME -> HomePage(store)
                         Page.PRESETS -> PresetsPage(presets, store, selectedCategory, { selectedCategory = it }, search, { search = it }, language)
                         Page.RULES -> RulesPage(presets, store, language)
-                        Page.DIAGNOSTICS -> DiagnosticsPage(presets, store, language)
+                        Page.DIAGNOSTICS -> ActivityPage()
                         Page.SETTINGS -> SettingsPage(
                             dark, { dark = it; store.setBool("darkTheme", it) },
                             language, { language = it; store.setString("language", it) },
                             store, presets, { infoMessage = it },
                             onExport = { exportLauncher.launch("privacy-flip-backup.json") },
                             onImport = { importLauncher.launch(arrayOf("application/json", "text/*", "application/octet-stream")) },
-                            onRequestNotificationPermission = requestNotificationPermission
+                            onRequestNotificationPermission = requestNotificationPermission,
+                            onOpenPresets = { page = Page.PRESETS },
+                            onOpenRules = { page = Page.RULES }
                         )
                     }
                 }

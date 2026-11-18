@@ -37,6 +37,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -67,14 +71,26 @@ internal fun PermissionRow(title: String, detail: String, granted: Boolean, butt
 }
 
 @Composable
+private fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Card {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            content()
+        }
+    }
+}
+
+@Composable
 internal fun SettingsPage(
     dark: Boolean, onDark: (Boolean) -> Unit,
     language: String, onLanguage: (String) -> Unit,
     store: LocalStore, presets: List<Preset>, onMessage: (String) -> Unit,
     onExport: () -> Unit, onImport: () -> Unit,
-    onRequestNotificationPermission: () -> Unit
+    onRequestNotificationPermission: () -> Unit,
+    onOpenPresets: () -> Unit, onOpenRules: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var statusTick by remember { mutableIntStateOf(0) }
     DisposableEffect(context) {
         val lifecycle = (context as? ComponentActivity)?.lifecycle
@@ -93,66 +109,150 @@ internal fun SettingsPage(
     val exactOk = remember(statusTick) {
         Build.VERSION.SDK_INT < 31 || (context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager)?.canScheduleExactAlarms() == true
     }
-    val batteryOk = remember(statusTick) {
-        (context.getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isIgnoringBatteryOptimizations(context.packageName) == true
+    val batteryOk = remember(statusTick) { KeepAlive.isIgnoringBatteryOptimizations(context) }
+    var shizukuReady by remember { mutableStateOf(false) }
+    LaunchedEffect(statusTick) {
+        shizukuReady = withContext(Dispatchers.IO) { ShizukuBridge.hasPermission() }
     }
     var monitorOn by remember { mutableStateOf(store.getBool("monitorEnabled", true)) }
+    var mode by remember { mutableStateOf(store.getString("backendMode", "auto")) }
+    var more by remember { mutableStateOf(false) }
     val packageUri = Uri.parse("package:${context.packageName}")
 
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 20.dp)) {
+    val boost: () -> Unit = {
+        scope.launch {
+            val result = withContext(Dispatchers.IO) { ShizukuBridge.keepAlive() }
+            AutomationEventProcessor.appendLog(context, "Keep-alive: " + result.replace("\n", "; "))
+            val steps = result.lines().filter { it.isNotBlank() }
+            onMessage("Boost applied: ${steps.count { it.startsWith("OK") }} of ${steps.size} steps OK")
+        }
+    }
+    val enableAccessibility: () -> Unit = {
+        scope.launch {
+            val result = withContext(Dispatchers.IO) { ShizukuBridge.enableAccessibility() }
+            AutomationEventProcessor.appendLog(context, "Keep-alive: $result")
+            onMessage(result.take(100))
+            delay(1500L)
+            statusTick++
+        }
+    }
+
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 20.dp)) {
         item {
-            Card {
-                Column(Modifier.padding(14.dp)) {
-                    Text("Appearance", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Dark theme", Modifier.weight(1f))
-                        Switch(checked = dark, onCheckedChange = onDark)
+            SectionCard("Keep running") {
+                Text(
+                    "Some phones, including iQOO, stop background apps. These steps keep lock and unlock automation alive.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Watch lock and unlock", fontWeight = FontWeight.Medium)
+                        Text(
+                            "Shows one quiet notification while it runs.",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Language / भाषा", Modifier.weight(1f))
-                        TextButton(onClick = { onLanguage("hi") }) { Text(if (language == "hi") "✓ हिंदी" else "हिंदी") }
-                        TextButton(onClick = { onLanguage("en") }) { Text(if (language == "en") "✓ English" else "English") }
+                    Switch(checked = monitorOn, onCheckedChange = {
+                        monitorOn = it
+                        store.setBool("monitorEnabled", it)
+                        MonitorService.sync(context)
+                    })
+                }
+                PermissionRow("Background battery use", "Allow Privacy Flip to keep running.", batteryOk, "Allow") {
+                    KeepAlive.requestIgnoreBatteryOptimizations(context)
+                }
+                PermissionRow(
+                    "Extra reliable mode",
+                    "The system keeps this service alive and it watches lock and unlock too. It reads nothing on screen.",
+                    lockOk,
+                    if (shizukuReady) "Turn on with Shizuku" else "Open accessibility settings"
+                ) {
+                    if (shizukuReady) enableAccessibility()
+                    else openSettings(context, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                }
+                OutlinedButton(onClick = boost, enabled = shizukuReady, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (shizukuReady) "Boost with Shizuku" else "Boost with Shizuku (connect Shizuku first)")
+                }
+                OutlinedButton(onClick = { KeepAlive.openVendorBackgroundSettings(context) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Open phone background settings")
+                }
+                Text(
+                    "On iQOO also: open Recent apps, long-press the Privacy Flip card and choose Lock. Do not swipe it away.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        item {
+            SectionCard("Connection mode") {
+                Text(
+                    "Auto uses Shizuku first, then Root. None never changes system settings.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                    listOf("auto" to "Auto", "shizuku" to "Shizuku", "root" to "Root", "standard" to "None").forEach { (value, label) ->
+                        FilterChip(
+                            selected = mode == value,
+                            onClick = {
+                                mode = value
+                                store.setString("backendMode", value)
+                            },
+                            label = { Text(label, maxLines = 1) },
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             }
         }
         item {
-            Card {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Background monitor", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Keep triggers running", fontWeight = FontWeight.Medium)
-                            Text("Needed for screen, unlock, battery, network, headset, airplane and flip triggers. Shows one quiet notification.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Switch(checked = monitorOn, onCheckedChange = {
-                            monitorOn = it
-                            store.setBool("monitorEnabled", it)
-                            MonitorService.sync(context)
-                        })
-                    }
-                    PermissionRow("Battery optimization", "Set Privacy Flip to Unrestricted so the phone does not kill the monitor.", batteryOk, "Open battery settings") {
-                        openSettings(context, Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-                    }
-                }
+            SectionCard("Timing") {
+                var lockDelay by remember { mutableFloatStateOf(store.getInt("lockDelaySec", 0).toFloat()) }
+                Text("Wait after locking: ${lockDelay.toInt()} s", fontWeight = FontWeight.Medium)
+                Slider(
+                    value = lockDelay, onValueChange = { lockDelay = it },
+                    onValueChangeFinished = { store.setInt("lockDelaySec", lockDelay.toInt()) },
+                    valueRange = 0f..30f, steps = 29
+                )
+                var unlockDelay by remember { mutableFloatStateOf(store.getInt("unlockDelaySec", 0).toFloat()) }
+                Text("Wait after unlocking: ${unlockDelay.toInt()} s", fontWeight = FontWeight.Medium)
+                Slider(
+                    value = unlockDelay, onValueChange = { unlockDelay = it },
+                    onValueChangeFinished = { store.setInt("unlockDelaySec", unlockDelay.toInt()) },
+                    valueRange = 0f..10f, steps = 9
+                )
             }
         }
         item {
-            Card {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Permissions for actions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("No root, Shizuku or ADB. Each permission is optional and only needed by the action named.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    PermissionRow("Notifications", "Notification actions and one-tap Wi-Fi/Bluetooth shortcuts.", notificationsOk, "Allow notifications") {
+            SectionCard("Appearance") {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Dark theme", Modifier.weight(1f))
+                    Switch(checked = dark, onCheckedChange = onDark)
+                }
+                Text(
+                    "Tip: add the Privacy Flip tile to Quick Settings to pause or resume protection from the pull-down panel.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        item {
+            OutlinedButton(onClick = { more = !more }, modifier = Modifier.fillMaxWidth()) {
+                Text(if (more) "Hide more settings" else "More settings")
+            }
+        }
+        if (more) {
+            item {
+                SectionCard("Extra permissions") {
+                    Text(
+                        "Brightness works without Shizuku if you allow Modify system settings. The others are only for presets and custom rules.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    PermissionRow("Modify system settings", "Lets brightness change without Shizuku.", writeOk, "Grant access") {
+                        openSettings(context, Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, packageUri))
+                    }
+                    PermissionRow("Notifications", "Notification actions and one-tap shortcuts.", notificationsOk, "Allow notifications") {
                         onRequestNotificationPermission()
                     }
                     PermissionRow("Do Not Disturb access", "Silent mode and Do Not Disturb actions.", dndOk, "Grant access") {
                         openSettings(context, Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
-                    }
-                    PermissionRow("Modify system settings", "Brightness actions.", writeOk, "Grant access") {
-                        openSettings(context, Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, packageUri))
-                    }
-                    PermissionRow("Accessibility service", "Lock screen action. It reads nothing on screen. If Android greys it out, open App info, tap the three dots, then Allow restricted settings.", lockOk, "Open accessibility settings") {
-                        openSettings(context, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                     }
                     PermissionRow("Exact alarms", "Daily schedules at the exact minute.", exactOk, "Grant access") {
                         if (Build.VERSION.SDK_INT >= 31) openSettings(context, Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, packageUri))
@@ -164,34 +264,28 @@ internal fun SettingsPage(
                     }, valueRange = 5f..50f, steps = 8)
                 }
             }
-        }
-        item {
-            Card {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Backup & restore", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Export or import your settings as a local JSON file. No account or internet is needed.", style = MaterialTheme.typography.bodySmall)
-                    OutlinedButton(onClick = onExport, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.FileDownload, null); Spacer(Modifier.width(8.dp)); Text("Export backup JSON")
-                    }
-                    OutlinedButton(onClick = onImport, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.FileUpload, null); Spacer(Modifier.width(8.dp)); Text("Import backup JSON")
-                    }
+            item {
+                SectionCard("Advanced automation") {
+                    OutlinedButton(onClick = onOpenPresets, modifier = Modifier.fillMaxWidth()) { Text("Ready-made presets") }
+                    OutlinedButton(onClick = onOpenRules, modifier = Modifier.fillMaxWidth()) { Text("Custom rules") }
                 }
             }
-        }
-        item {
-            Card {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Privacy & data", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("No account and no network permission. Everything stays on this device.", style = MaterialTheme.typography.bodySmall)
+            item {
+                SectionCard("Backup") {
+                    OutlinedButton(onClick = onExport, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.FileDownload, null); Spacer(Modifier.width(8.dp)); Text("Export backup")
+                    }
+                    OutlinedButton(onClick = onImport, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.FileUpload, null); Spacer(Modifier.width(8.dp)); Text("Import backup")
+                    }
                     OutlinedButton(onClick = {
                         store.setBool("masterPaused", true)
                         presets.forEach { p ->
                             store.setBool("preset_${p.id}", false)
                             p.actions.forEach { a -> store.setBool("action_${p.id}_${a.id}", false) }
                         }
-                        onMessage("All local preset toggles reset.")
-                    }, modifier = Modifier.fillMaxWidth()) { Text("Reset preset toggles") }
+                        onMessage("Presets switched off and protection paused.")
+                    }, modifier = Modifier.fillMaxWidth()) { Text("Switch off all presets") }
                 }
             }
         }
